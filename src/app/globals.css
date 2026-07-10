@@ -1,0 +1,274 @@
+/* Google Fonts — must be first */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+/* ============================================================
+   THIRUMALA FURNITURE — DESIGN TOKENS
+   Zero GST Billing Software
+   ============================================================ */
+
+/* ============================================================
+   CSS CUSTOM PROPERTIES — LIGHT MODE
+   ============================================================ */
+:root {
+  /* === Brand Colors === */
+  --primary:            #00D9D9;
+  --primary-hover:      #00C7C7;
+  --secondary:          #00B8B8;
+  --accent:             #35F5FF;
+
+  /* === Backgrounds === */
+  --background:         #F8FAFC;
+  --surface:            #FFFFFF;
+  --surface-hover:      #F9FAFB;
+  --secondary-bg:       #F1F5F9;
+
+  /* === Borders === */
+  --border:             #E5E7EB;
+  --divider:            #D1D5DB;
+
+  /* === Text === */
+  --text-primary:       #111827;
+  --text-secondary:     #6B7280;
+  --text-muted:         #9CA3AF;
+  --text-disabled:      #D1D5DB;
+
+  /* === Semantic === */
+  --success:            #22C55E;
+  --warning:            #F59E0B;
+  --error:              #EF4444;
+  --info:               #3B82F6;
+
+  /* === Semantic backgrounds === */
+  --success-bg:         #F0FDF4;
+  --warning-bg:         #FFFBEB;
+  --error-bg:           #FEF2F2;
+  --info-bg:            #EFF6FF;
+
+  /* === Chart Colors === */
+  --chart-1:            #00D9D9;
+  --chart-2:            #00B8B8;
+  --chart-3:            #35F5FF;
+  --chart-4:            #22C55E;
+  --chart-5:            #F59E0B;
+  --chart-6:            #8B5CF6;
+  --chart-7:            #3B82F6;
+
+  /* === Gradients === */
+  --gradient-start:     #00D9D9;
+  --gradient-end:       #35F5FF;
+
+  /* === Sidebar === */
+  --sidebar-bg:         #FFFFFF;
+  --sidebar-border:     #E5E7EB;
+
+  /* === Misc === */
+  --radius-sm:          4px;
+  --radius:             8px;
+  --radius-lg:          12px;
+  --radius-xl:          16px;
+  --shadow-sm:          0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow:             0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md:          0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg:          0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl:          0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* ============================================================
+   CSS CUSTOM PROPERTIES — DARK MODE
+   ============================================================ */
+[data-theme="dark"] {
+  --primary:            #00D9D9;
+  --primary-hover:      #35F5FF;
+  --secondary:          #00B8B8;
+  --accent:             #35F5FF;
+
+  --background:         #0F172A;
+  --surface:            #1E293B;
+  --surface-hover:      #263349;
+  --secondary-bg:       #162032;
+
+  --border:             #2D3748;
+  --divider:            #374151;
+
+  --text-primary:       #F1F5F9;
+  --text-secondary:     #94A3B8;
+  --text-muted:         #64748B;
+  --text-disabled:      #475569;
+
+  --success:            #4ADE80;
+  --warning:            #FCD34D;
+  --error:              #F87171;
+  --info:               #60A5FA;
+
+  --success-bg:         #052e16;
+  --warning-bg:         #1c1002;
+  --error-bg:           #1c0606;
+  --info-bg:            #0c1a2e;
+
+  --sidebar-bg:         #1E293B;
+  --sidebar-border:     #2D3748;
+}
+
+/* ============================================================
+   TAILWIND V4 THEME
+   ============================================================ */
+@theme inline {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-primary:          var(--primary);
+  --color-primary-hover:    var(--primary-hover);
+  --color-secondary:        var(--secondary);
+  --color-accent:           var(--accent);
+  --color-background:       var(--background);
+  --color-surface:          var(--surface);
+  --color-surface-hover:    var(--surface-hover);
+  --color-secondary-bg:     var(--secondary-bg);
+  --color-border:           var(--border);
+  --color-divider:          var(--divider);
+  --color-text-primary:     var(--text-primary);
+  --color-text-secondary:   var(--text-secondary);
+  --color-text-muted:       var(--text-muted);
+  --color-text-disabled:    var(--text-disabled);
+  --color-success:          var(--success);
+  --color-warning:          var(--warning);
+  --color-error:            var(--error);
+  --color-info:             var(--info);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; border-color: var(--border); }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--divider); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ============================================================
+   UTILITY CLASSES
+   ============================================================ */
+.gradient-primary { background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%); }
+.gradient-primary-text {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.font-number { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   SCANNER ANIMATIONS
+   ============================================================ */
+@keyframes scanner-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,217,217,0); }
+  50%       { box-shadow: 0 0 0 8px rgba(0,217,217,0.15); }
+}
+@keyframes scanner-error {
+  0%, 100% { transform: translateX(0); }
+  15%      { transform: translateX(-6px); }
+  30%      { transform: translateX(6px); }
+  45%      { transform: translateX(-4px); }
+  60%      { transform: translateX(4px); }
+  75%      { transform: translateX(-2px); }
+  90%      { transform: translateX(2px); }
+}
+@keyframes row-highlight {
+  0%   { background-color: rgba(0,217,217,0.15); }
+  100% { background-color: transparent; }
+}
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-scanner-error   { animation: scanner-error 0.5s ease-in-out; }
+.animate-row-highlight   { animation: row-highlight 1.5s ease-out forwards; }
+.animate-slide-in-up     { animation: slide-in-up 0.25s ease-out; }
+.animate-fade-in         { animation: fade-in 0.2s ease-out; }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--secondary-bg) 25%, var(--surface-hover) 50%, var(--secondary-bg) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius);
+}
+
+/* ============================================================
+   SCANNER INPUT
+   ============================================================ */
+.scanner-input {
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.scanner-input:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0,217,217,0.12);
+  animation: scanner-pulse 2s ease-in-out infinite;
+}
+
+/* ============================================================
+   GRAND TOTAL DISPLAY
+   ============================================================ */
+.grand-total-display {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+}
+
+/* ============================================================
+   NO PRINT / PRINT ONLY
+   ============================================================ */
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+
+  body { background: white !important; color: black !important; }
+
+  .print-a4 {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 12mm;
+    background: white;
+    font-family: 'Inter', sans-serif;
+  }
+  .print-thermal {
+    width: 72mm;
+    padding: 3mm;
+    background: white;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+  }
+  nav, aside, .sidebar, .topbar, .billing-actions-bar { display: none !important; }
+}

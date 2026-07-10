@@ -1,0 +1,24 @@
+{
+  "name": "Tirumala Scanner",
+  "short_name": "TF Scanner",
+  "description": "Wireless Barcode Scanner for Tirumala Furniture POS",
+  "start_url": "/scanner",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#00D9D9",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
