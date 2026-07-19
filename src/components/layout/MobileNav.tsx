@@ -32,22 +32,29 @@ export function MobileNav() {
           <Link
             key={item.href}
             href={item.href}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors"
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-colors"
             style={{ color: isActive ? 'var(--primary)' : 'var(--text-muted)' }}
           >
             {item.highlight ? (
               <div
-                className="w-12 h-12 -mt-6 rounded-full flex items-center justify-center text-xl font-bold shadow-lg"
-                style={{ background: 'linear-gradient(135deg, #00D9D9, #35F5FF)', color: '#0F172A' }}
+                className="w-10 h-10 -mt-5 rounded-full flex items-center justify-center text-lg font-bold transition-all"
+                style={{
+                  background: isActive
+                    ? 'linear-gradient(135deg, #00D9D9, #35F5FF)'
+                    : 'var(--secondary-bg)',
+                  color: isActive ? '#0F172A' : 'var(--text-secondary)',
+                  border: isActive ? 'none' : '1px solid var(--border)',
+                  boxShadow: isActive ? '0 4px 12px rgba(0,217,217,0.35)' : 'none',
+                }}
               >
                 {item.icon}
               </div>
             ) : (
               <span className="text-lg leading-none">{item.icon}</span>
             )}
-            {!item.highlight && (
-              <span className="text-xs">{item.label}</span>
-            )}
+            <span className="text-[10px] font-medium leading-none" style={{ color: isActive ? 'var(--primary)' : 'var(--text-muted)' }}>
+              {item.label}
+            </span>
           </Link>
         )
       })}
