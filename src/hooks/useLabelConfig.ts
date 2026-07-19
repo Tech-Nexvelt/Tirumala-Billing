@@ -71,7 +71,7 @@ export function useLabelConfig() {
       setConfig(initial)
     } catch {
       // Ignore parse errors
-    } fontFinally: {
+    } finally {
       setIsLoaded(true)
     }
   }, [store])

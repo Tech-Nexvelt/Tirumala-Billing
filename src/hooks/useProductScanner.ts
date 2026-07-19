@@ -159,7 +159,7 @@ export function useProductScanner(options: UseProductScannerOptions = {}) {
         setScanValue('')
         focus()
       }, 1200)
-    } fontFinally: {
+    } finally {
       setIsSearching(false)
     }
   }, [supabase, addItem, focus, onProductFound, onProductNotFound])

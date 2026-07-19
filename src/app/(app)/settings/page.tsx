@@ -33,11 +33,34 @@ function Field({ label, children, hint }: { label: string; children: React.React
   )
 }
 
+// ── CSV helpers ──────────────────────────────────────────────────────────────
+function downloadCSV(filename: string, rows: Record<string, unknown>[]) {
+  if (!rows.length) { toast.error('No data to export'); return }
+  const headers = Object.keys(rows[0])
+  const csv = [
+    headers.join(','),
+    ...rows.map(row =>
+      headers.map(h => {
+        const val = String(row[h] ?? '').replace(/"/g, '""')
+        return `"${val}"`
+      }).join(',')
+    ),
+  ].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function SettingsPage() {
   const { store, profile, refreshProfile, isAdmin } = useAuth()
   const supabase = createClient()
   const [activeTab, setActiveTab] = useState('store')
   const [isSaving, setIsSaving] = useState(false)
+  const [isExporting, setIsExporting] = useState<'bills' | 'products' | null>(null)
 
   const [storeForm, setStoreForm] = useState({
     name: '',
@@ -51,6 +74,16 @@ export default function SettingsPage() {
     invoice_prefix: 'INV-',
     invoice_footer: 'Thank you for shopping with us!',
     currency_symbol: '₹',
+  })
+
+  const [printerForm, setPrinterForm] = useState({
+    receipt_width: '80mm',
+    auto_print: 'false',
+  })
+
+  const [qrForm, setQrForm] = useState({
+    qr_format: 'QR_STANDARD',
+    label_size: '100x150',
   })
 
   useEffect(() => {
@@ -68,42 +101,156 @@ export default function SettingsPage() {
         invoice_footer: store.invoice_footer ?? 'Thank you for shopping with us!',
         currency_symbol: store.currency_symbol ?? '₹',
       })
+      if (store.receipt_width) {
+        setPrinterForm(p => ({ ...p, receipt_width: store.receipt_width ?? '80mm' }))
+      }
     }
   }, [store])
 
+  // ── Save Store Info ──────────────────────────────────────────────────────
   const handleSaveStore = async () => {
     if (!store?.id) return
     setIsSaving(true)
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
-        .from('stores')
-        .update(storeForm)
-        .eq('id', store.id)
+      const { error } = await (supabase as any).from('stores').update(storeForm).eq('id', store.id)
       if (error) throw error
       await refreshProfile()
       toast.success('Store settings saved!')
-    } catch (err) {
+    } catch {
       toast.error('Failed to save settings')
     } finally {
       setIsSaving(false)
     }
   }
 
-  const inputClass = "w-full h-10 px-3 rounded-lg text-sm outline-none transition-all"
+  // ── Save Printer Settings ────────────────────────────────────────────────
+  const handleSavePrinter = async () => {
+    if (!store?.id) return
+    setIsSaving(true)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('stores')
+        .update({ receipt_width: printerForm.receipt_width })
+        .eq('id', store.id)
+      if (error) throw error
+      await refreshProfile()
+      // Also persist auto-print to localStorage
+      localStorage.setItem('tirumala_auto_print', printerForm.auto_print)
+      toast.success('Printer settings saved!')
+    } catch {
+      toast.error('Failed to save printer settings')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // ── Save QR Code Settings ────────────────────────────────────────────────
+  const handleSaveQR = () => {
+    localStorage.setItem('tirumala_qr_format', qrForm.qr_format)
+    localStorage.setItem('tirumala_label_size', qrForm.label_size)
+    toast.success('QR Code settings saved!')
+  }
+
+  // ── Export Bills CSV ─────────────────────────────────────────────────────
+  const handleExportBills = async () => {
+    if (!store?.id) return
+    setIsExporting('bills')
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('invoice_number, created_at, customer_name, customer_phone, customer_address, grand_total, payment_method, status')
+        .eq('store_id', store.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const rows = (data ?? []).map(inv => ({
+        'Invoice #': inv.invoice_number,
+        'Date': new Date(inv.created_at).toLocaleString('en-IN'),
+        'Customer Name': inv.customer_name,
+        'Customer Phone': inv.customer_phone ?? '',
+        'Customer Address': inv.customer_address ?? '',
+        'Grand Total': inv.grand_total,
+        'Payment Method': inv.payment_method,
+        'Status': inv.status,
+      }))
+
+      downloadCSV(`bills_export_${new Date().toISOString().slice(0, 10)}.csv`, rows)
+      toast.success(`Exported ${rows.length} bills`)
+    } catch {
+      toast.error('Failed to export bills')
+    } finally {
+      setIsExporting(null)
+    }
+  }
+
+  // ── Export Products CSV ──────────────────────────────────────────────────
+  const handleExportProducts = async () => {
+    if (!store?.id) return
+    setIsExporting('products')
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('name, sku, barcode, selling_price, purchase_price, stock_qty, status, description')
+        .eq('store_id', store.id)
+        .is('deleted_at', null)
+        .order('name')
+
+      if (error) throw error
+
+      const rows = (data ?? []).map(p => ({
+        'Product Name': p.name,
+        'SKU': p.sku,
+        'Barcode': p.barcode ?? '',
+        'Selling Price': p.selling_price,
+        'Purchase Price': p.purchase_price ?? '',
+        'Stock Qty': p.stock_qty,
+        'Status': p.status,
+        'Description': p.description ?? '',
+      }))
+
+      downloadCSV(`products_export_${new Date().toISOString().slice(0, 10)}.csv`, rows)
+      toast.success(`Exported ${rows.length} products`)
+    } catch {
+      toast.error('Failed to export products')
+    } finally {
+      setIsExporting(null)
+    }
+  }
+
+  const inputClass = 'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all'
   const inputStyle = {
     background: 'var(--secondary-bg)',
     border: '1.5px solid var(--border)',
     color: 'var(--text-primary)',
   }
-  const onFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const onFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     e.target.style.borderColor = 'var(--primary)'
     e.target.style.boxShadow = '0 0 0 3px rgba(0,217,217,0.1)'
   }
-  const onBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const onBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     e.target.style.borderColor = 'var(--border)'
     e.target.style.boxShadow = 'none'
   }
+
+  const SaveBtn = ({ onClick, label }: { onClick: () => void; label?: string }) => (
+    <button
+      onClick={onClick}
+      disabled={isSaving}
+      className="h-11 px-8 rounded-xl font-bold text-sm flex items-center gap-2"
+      style={{
+        background: 'linear-gradient(135deg, #00D9D9, #35F5FF)',
+        color: '#0F172A',
+        cursor: isSaving ? 'wait' : 'pointer',
+        opacity: isSaving ? 0.8 : 1,
+      }}
+    >
+      {isSaving ? 'Saving...' : `✓ ${label ?? 'Save Settings'}`}
+    </button>
+  )
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -131,7 +278,7 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {/* Store Info Tab */}
+      {/* ── Store Info Tab ── */}
       {activeTab === 'store' && (
         <div className="space-y-4">
           <SectionCard title="Store Details">
@@ -209,35 +356,34 @@ export default function SettingsPage() {
             </Field>
           </SectionCard>
 
-          <button
-            onClick={handleSaveStore}
-            disabled={isSaving}
-            className="h-11 px-8 rounded-xl font-bold text-sm flex items-center gap-2"
-            style={{
-              background: 'linear-gradient(135deg, #00D9D9, #35F5FF)',
-              color: '#0F172A',
-              cursor: isSaving ? 'wait' : 'pointer',
-            }}
-          >
-            {isSaving ? 'Saving...' : '✓ Save Settings'}
-          </button>
+          <SaveBtn onClick={handleSaveStore} label="Save Store Settings" />
         </div>
       )}
 
-      {/* QR Code Settings */}
+      {/* ── QR Code Tab ── */}
       {activeTab === 'qrcode' && (
         <div className="space-y-4">
           <SectionCard title="QR Code Configuration">
             <div className="grid grid-cols-2 gap-4">
               <Field label="Default QR Code Format">
-                <select className={inputClass} style={inputStyle} defaultValue="QR_STANDARD">
+                <select
+                  className={inputClass} style={inputStyle}
+                  value={qrForm.qr_format}
+                  onChange={e => setQrForm(p => ({ ...p, qr_format: e.target.value }))}
+                  onFocus={onFocus} onBlur={onBlur}
+                >
                   <option value="QR_STANDARD">Standard QR Code (Version 2) (Recommended)</option>
                   <option value="QR_MICRO">Compact Micro QR Code</option>
                   <option value="QR_HIGH_DENSITY">High Density Matrix</option>
                 </select>
               </Field>
               <Field label="Label Template Size">
-                <select className={inputClass} style={inputStyle} defaultValue="100x150">
+                <select
+                  className={inputClass} style={inputStyle}
+                  value={qrForm.label_size}
+                  onChange={e => setQrForm(p => ({ ...p, label_size: e.target.value }))}
+                  onFocus={onFocus} onBlur={onBlur}
+                >
                   <option value="100x150">Large Tag (100×150mm)</option>
                   <option value="80x120">Standard Furniture (80×120mm)</option>
                   <option value="70x100">Medium Tag (70×100mm)</option>
@@ -270,38 +416,54 @@ export default function SettingsPage() {
               ))}
             </div>
           </SectionCard>
+
+          <SaveBtn onClick={handleSaveQR} label="Save QR Settings" />
         </div>
       )}
 
-      {/* Printer Settings */}
+      {/* ── Printer Tab ── */}
       {activeTab === 'printer' && (
-        <SectionCard title="Printer Configuration">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Receipt Width" hint="80mm for thermal printer, A4 for laser">
-              <select className={inputClass} style={inputStyle} defaultValue="80mm">
-                <option value="58mm">58mm Thermal</option>
-                <option value="80mm">80mm Thermal (Recommended)</option>
-                <option value="A4">A4 Paper</option>
-              </select>
-            </Field>
-            <Field label="Auto Print on Save">
-              <select className={inputClass} style={inputStyle} defaultValue="false">
-                <option value="false">Manual Print</option>
-                <option value="true">Auto Print</option>
-              </select>
-            </Field>
-          </div>
-          <div
-            className="p-4 rounded-lg text-sm"
-            style={{ background: 'var(--info-bg)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.2)' }}
-          >
-            <strong>Thermal Printer Setup:</strong> Configure your thermal printer as the default printer in your OS settings.
-            The 80mm layout is optimized for ESC/POS thermal printers. Press Print on any invoice to test.
-          </div>
-        </SectionCard>
+        <div className="space-y-4">
+          <SectionCard title="Printer Configuration">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Receipt Width" hint="80mm for thermal printer, A4 for laser">
+                <select
+                  className={inputClass} style={inputStyle}
+                  value={printerForm.receipt_width}
+                  onChange={e => setPrinterForm(p => ({ ...p, receipt_width: e.target.value }))}
+                  onFocus={onFocus} onBlur={onBlur}
+                >
+                  <option value="58mm">58mm Thermal</option>
+                  <option value="80mm">80mm Thermal (Recommended)</option>
+                  <option value="A4">A4 Paper</option>
+                </select>
+              </Field>
+              <Field label="Auto Print on Save">
+                <select
+                  className={inputClass} style={inputStyle}
+                  value={printerForm.auto_print}
+                  onChange={e => setPrinterForm(p => ({ ...p, auto_print: e.target.value }))}
+                  onFocus={onFocus} onBlur={onBlur}
+                >
+                  <option value="false">Manual Print</option>
+                  <option value="true">Auto Print</option>
+                </select>
+              </Field>
+            </div>
+            <div
+              className="p-4 rounded-lg text-sm"
+              style={{ background: 'var(--info-bg)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.2)' }}
+            >
+              <strong>Thermal Printer Setup:</strong> Configure your thermal printer as the default printer in your OS settings.
+              The 80mm layout is optimized for ESC/POS thermal printers. Press Print on any invoice to test.
+            </div>
+          </SectionCard>
+
+          <SaveBtn onClick={handleSavePrinter} label="Save Printer Settings" />
+        </div>
       )}
 
-      {/* Users Tab */}
+      {/* ── Users Tab ── */}
       {activeTab === 'users' && isAdmin && (
         <SectionCard title="User Management">
           <div
@@ -317,33 +479,56 @@ export default function SettingsPage() {
         </SectionCard>
       )}
 
-      {/* Backup */}
+      {/* ── Backup Tab ── */}
       {activeTab === 'backup' && (
-        <SectionCard title="Data Backup & Export">
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Export your billing data for backup or analysis.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              className="flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-medium"
-              style={{ background: 'var(--secondary-bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+        <div className="space-y-4">
+          <SectionCard title="Data Backup & Export">
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Export your billing data for backup or analysis.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleExportBills}
+                disabled={isExporting === 'bills'}
+                className="flex items-center gap-2 h-10 px-5 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #00D9D9, #35F5FF)',
+                  color: '#0F172A',
+                  opacity: isExporting === 'bills' ? 0.7 : 1,
+                  cursor: isExporting === 'bills' ? 'wait' : 'pointer',
+                }}
+              >
+                {isExporting === 'bills' ? (
+                  <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75"/></svg> Exporting...</>
+                ) : '📊 Export Bills (CSV)'}
+              </button>
+
+              <button
+                onClick={handleExportProducts}
+                disabled={isExporting === 'products'}
+                className="flex items-center gap-2 h-10 px-5 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  background: 'var(--secondary-bg)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border)',
+                  opacity: isExporting === 'products' ? 0.7 : 1,
+                  cursor: isExporting === 'products' ? 'wait' : 'pointer',
+                }}
+              >
+                {isExporting === 'products' ? (
+                  <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75"/></svg> Exporting...</>
+                ) : '📦 Export Products (CSV)'}
+              </button>
+            </div>
+
+            <div
+              className="p-4 rounded-lg text-sm"
+              style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}
             >
-              📊 Export Bills (CSV)
-            </button>
-            <button
-              className="flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-medium"
-              style={{ background: 'var(--secondary-bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-            >
-              📦 Export Products (CSV)
-            </button>
-          </div>
-          <div
-            className="p-4 rounded-lg text-sm"
-            style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}
-          >
-            Your data is secure and you can backup anytime.
-          </div>
-        </SectionCard>
+              Your data is secure and you can backup anytime.
+            </div>
+          </SectionCard>
+        </div>
       )}
     </div>
   )

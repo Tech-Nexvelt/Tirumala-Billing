@@ -1,17 +1,39 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { useCreateProduct, useCategories } from '@/hooks/useProducts'
-import { useAuth } from '@/hooks/useAuth'
+import { useState, useEffect } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { useProducts, useUpdateProduct, useCategories } from '@/hooks/useProducts'
 import { generateSKU, generateBarcode, validateBarcode, validateSKU } from '@/lib/utils/sku'
 import { ProductLabelPreview } from '@/components/products/labels/ProductLabelPreview'
 import { toast } from 'sonner'
 
-export default function NewProductPage() {
+interface FieldProps {
+  label: string
+  error?: string
+  children: React.ReactNode
+  hint?: string
+}
+
+function Field({ label, error, children, hint }: FieldProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>{label}</label>
+      {children}
+      {hint && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
+      {error && <p className="text-xs mt-1" style={{ color: 'var(--error)' }}>{error}</p>}
+    </div>
+  )
+}
+
+export default function EditProductPage() {
   const router = useRouter()
-  const { user, profile } = useAuth()
-  const createProduct = useCreateProduct()
+  const params = useParams()
+  const productId = params.id as string
+
+  const updateProduct = useUpdateProduct()
   const { data: categories = [] } = useCategories()
+  const { data: products = [], isLoading } = useProducts({})
+
+  const product = products.find(p => p.id === productId)
 
   const [form, setForm] = useState({
     name: '',
@@ -24,26 +46,26 @@ export default function NewProductPage() {
     barcode: '',
     status: 'active',
   })
-  const [skuManual, setSkuManual] = useState(false)
-  const [barcodeManual, setBarcodeManual] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [loaded, setLoaded] = useState(false)
 
-  // Auto-generate SKU when name/category changes
+  // Pre-fill form when product loads
   useEffect(() => {
-    if (!skuManual && form.name.length >= 3) {
-      const catName = categories.find(c => c.id === form.category_id)?.name
-      const sku = generateSKU(form.name, catName)
-      setForm(p => ({ ...p, sku }))
+    if (product && !loaded) {
+      setForm({
+        name: product.name ?? '',
+        category_id: product.category_id ?? '',
+        description: product.description ?? '',
+        purchase_price: product.purchase_price != null ? String(product.purchase_price) : '',
+        selling_price: product.selling_price != null ? String(product.selling_price) : '',
+        stock_qty: product.stock_qty != null ? String(product.stock_qty) : '0',
+        sku: product.sku ?? '',
+        barcode: product.barcode ?? '',
+        status: product.status ?? 'active',
+      })
+      setLoaded(true)
     }
-  }, [form.name, form.category_id, skuManual, categories])
-
-  // Auto-generate barcode when SKU changes
-  useEffect(() => {
-    if (!barcodeManual && form.sku.length >= 3) {
-      const bc = generateBarcode(form.sku)
-      setForm(p => ({ ...p, barcode: bc }))
-    }
-  }, [form.sku, barcodeManual])
+  }, [product, loaded])
 
   const validate = () => {
     const errs: Record<string, string> = {}
@@ -62,8 +84,8 @@ export default function NewProductPage() {
     e.preventDefault()
     if (!validate()) return
 
-    await createProduct.mutateAsync({
-      store_id: profile?.store_id || '',
+    await updateProduct.mutateAsync({
+      id: productId,
       name: form.name.trim(),
       category_id: form.category_id || undefined,
       description: form.description || null,
@@ -73,13 +95,12 @@ export default function NewProductPage() {
       sku: form.sku.trim().toUpperCase(),
       barcode: form.barcode.trim().toUpperCase(),
       status: form.status as 'active' | 'inactive',
-      created_by: user?.id,
     })
 
     router.push('/products')
   }
 
-  const inputClass = "w-full h-10 px-3 rounded-lg text-sm outline-none transition-all"
+  const inputClass = 'w-full h-10 px-3 rounded-lg text-sm outline-none transition-all'
   const inputStyle = {
     background: 'var(--secondary-bg)',
     border: '1.5px solid var(--border)',
@@ -94,6 +115,34 @@ export default function NewProductPage() {
     e.target.style.boxShadow = 'none'
   }
 
+  if (isLoading) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="animate-pulse space-y-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-10 rounded-lg" style={{ background: 'var(--secondary-bg)' }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!isLoading && !product) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto text-center py-20">
+        <p className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Product not found</p>
+        <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>The product you are trying to edit does not exist.</p>
+        <button
+          onClick={() => router.push('/products')}
+          className="h-10 px-6 rounded-xl text-sm font-semibold"
+          style={{ background: 'var(--primary)', color: '#0F172A' }}
+        >
+          ← Back to Products
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
@@ -105,9 +154,9 @@ export default function NewProductPage() {
           </svg>
           Back to Products
         </button>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Add New Product</h1>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Edit Product</h1>
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          SKU and barcode are auto-generated. You can customise them if needed.
+          Update product details. SKU and barcode can be regenerated if needed.
         </p>
       </div>
 
@@ -127,7 +176,8 @@ export default function NewProductPage() {
                   value={form.name}
                   onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="e.g. 3-Seater Fabric Sofa"
-                  className={inputClass} style={{ ...inputStyle, borderColor: errors.name ? 'var(--error)' : 'var(--border)' }}
+                  className={inputClass}
+                  style={{ ...inputStyle, borderColor: errors.name ? 'var(--error)' : 'var(--border)' }}
                   onFocus={inputFocus} onBlur={inputBlur}
                 />
               </Field>
@@ -204,15 +254,20 @@ export default function NewProductPage() {
             >
               <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>SKU & Barcode</h2>
 
-              <Field label="SKU *" error={errors.sku} hint="Auto-generated from product name. Must be unique.">
+              <Field label="SKU *" error={errors.sku} hint="Must be unique. Letters, numbers, and hyphens only.">
                 <div className="flex gap-2">
                   <input type="text" required value={form.sku}
-                    onChange={e => { setSkuManual(true); setForm(p => ({ ...p, sku: e.target.value.toUpperCase() })) }}
+                    onChange={e => setForm(p => ({ ...p, sku: e.target.value.toUpperCase() }))}
                     placeholder="e.g. SOF-ABC123"
                     className={`${inputClass} flex-1 font-mono`}
                     style={{ ...inputStyle, borderColor: errors.sku ? 'var(--error)' : 'var(--border)' }}
                     onFocus={inputFocus} onBlur={inputBlur} />
-                  <button type="button" onClick={() => { setSkuManual(false); setForm(p => ({ ...p, sku: '' })) }}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const catName = categories.find(c => c.id === form.category_id)?.name
+                      setForm(p => ({ ...p, sku: generateSKU(p.name, catName) }))
+                    }}
                     className="h-10 px-3 rounded-lg text-xs font-medium"
                     style={{ background: 'var(--secondary-bg)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                     Regenerate
@@ -220,15 +275,17 @@ export default function NewProductPage() {
                 </div>
               </Field>
 
-              <Field label="Barcode *" error={errors.barcode} hint="Code128 format. Auto-generated from SKU. Must be unique.">
+              <Field label="Barcode *" error={errors.barcode} hint="Code128 format. Must be unique.">
                 <div className="flex gap-2">
                   <input type="text" required value={form.barcode}
-                    onChange={e => { setBarcodeManual(true); setForm(p => ({ ...p, barcode: e.target.value.toUpperCase() })) }}
+                    onChange={e => setForm(p => ({ ...p, barcode: e.target.value.toUpperCase() }))}
                     placeholder="e.g. TFSOF-ABC12301"
                     className={`${inputClass} flex-1 font-mono`}
                     style={{ ...inputStyle, borderColor: errors.barcode ? 'var(--error)' : 'var(--border)' }}
                     onFocus={inputFocus} onBlur={inputBlur} />
-                  <button type="button" onClick={() => { setBarcodeManual(false); setForm(p => ({ ...p, barcode: '' })) }}
+                  <button
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, barcode: generateBarcode(p.sku) }))}
                     className="h-10 px-3 rounded-lg text-xs font-medium"
                     style={{ background: 'var(--secondary-bg)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                     Regenerate
@@ -285,17 +342,17 @@ export default function NewProductPage() {
             {/* Submit */}
             <button
               type="submit"
-              disabled={createProduct.isPending}
+              disabled={updateProduct.isPending}
               className="w-full h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
               style={{
-                background: createProduct.isPending ? 'var(--secondary-bg)' : 'linear-gradient(135deg, #00D9D9, #35F5FF)',
-                color: createProduct.isPending ? 'var(--text-disabled)' : '#0F172A',
-                cursor: createProduct.isPending ? 'not-allowed' : 'pointer',
+                background: updateProduct.isPending ? 'var(--secondary-bg)' : 'linear-gradient(135deg, #00D9D9, #35F5FF)',
+                color: updateProduct.isPending ? 'var(--text-disabled)' : '#0F172A',
+                cursor: updateProduct.isPending ? 'not-allowed' : 'pointer',
               }}
             >
-              {createProduct.isPending ? (
+              {updateProduct.isPending ? (
                 <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75"/></svg> Saving...</>
-              ) : '✓ Create Product'}
+              ) : '✓ Save Changes'}
             </button>
             <button type="button" onClick={() => router.back()}
               className="w-full h-10 rounded-xl font-medium text-sm"
@@ -305,24 +362,6 @@ export default function NewProductPage() {
           </div>
         </div>
       </form>
-    </div>
-  )
-}
-
-interface FieldProps {
-  label: string
-  error?: string
-  children: React.ReactNode
-  hint?: string
-}
-
-function Field({ label, error, children, hint }: FieldProps) {
-  return (
-    <div>
-      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>{label}</label>
-      {children}
-      {hint && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
-      {error && <p className="text-xs mt-1" style={{ color: 'var(--error)' }}>{error}</p>}
     </div>
   )
 }

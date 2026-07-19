@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { formatCurrency } from '@/lib/utils/currency'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { BarcodeInput } from '@/components/billing/BarcodeInput'
 import { InvoiceTable } from '@/components/billing/InvoiceTable'
 import { InvoiceSummary } from '@/components/billing/InvoiceSummary'
@@ -22,6 +22,7 @@ import { FeedbackService } from '@/services/feedbackService'
 
 export default function NewBillPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const {
     items,
     customer,
@@ -36,6 +37,7 @@ export default function NewBillPage() {
     isDirty,
     lastSavedAt,
     clearBill,
+    setCustomer,
   } = useBillingStore()
 
   const { store, user, profile } = useAuth()
@@ -49,6 +51,70 @@ export default function NewBillPage() {
 
   const { products, fetchProducts, syncProduct } = useProductCacheStore()
   const { addItem } = useBillingStore()
+
+  // ── Duplicate Bill: load original invoice items + customer on mount ──
+  useEffect(() => {
+    const duplicateId = searchParams.get('duplicate')
+    if (!duplicateId) return
+
+    const supabaseClient = createClient()
+
+    async function loadDuplicate() {
+      try {
+        const { data: inv, error: invErr } = await supabaseClient
+          .from('invoices')
+          .select('customer_name, customer_phone, customer_address, payment_method')
+          .eq('id', duplicateId)
+          .single()
+
+        if (invErr || !inv) {
+          toast.error('Could not load original bill to duplicate')
+          return
+        }
+
+        const { data: invItems, error: itemErr } = await supabaseClient
+          .from('invoice_items')
+          .select('product_id, product_name, product_sku, product_barcode, quantity, unit_price, discount_percent')
+          .eq('invoice_id', duplicateId)
+
+        if (itemErr || !invItems || invItems.length === 0) {
+          toast.error('No items found in original bill')
+          return
+        }
+
+        clearBill()
+
+        // Pre-fill customer
+        if (setCustomer) {
+          setCustomer({
+            name: inv.customer_name ?? '',
+            phone: inv.customer_phone ?? '',
+            address: inv.customer_address ?? '',
+          })
+        }
+
+        // Add all items
+        for (const item of invItems) {
+          addItem({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            product_sku: item.product_sku,
+            product_barcode: item.product_barcode,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            discount_percent: item.discount_percent ?? 0,
+          })
+        }
+
+        toast.success(`Duplicated bill with ${invItems.length} item(s). Review and save as new.`, { duration: 4000 })
+      } catch (err) {
+        console.error('[Duplicate Bill Error]', err)
+        toast.error('Failed to duplicate bill')
+      }
+    }
+
+    loadDuplicate()
+  }, []) // run once on mount
 
   // Realtime scan queue variables
   const scanQueue = useRef<string[]>([])
@@ -233,7 +299,7 @@ export default function NewBillPage() {
       }
     } catch {
       // Error toast handled in hook
-    } fontFinally: {
+    } finally {
       setIsSaving(false)
     }
   }, [store, user, items, customer, payment_method, split_payments, delivery_charge, installation_charge, additional_discount, amount_tendered, notes, summary, createInvoice, clearBill])
