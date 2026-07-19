@@ -1,10 +1,9 @@
 'use client'
-import { useEffect } from 'react'
-import { useBarcodeScan } from '@/hooks/useBarcodeScan'
+import { useProductScanner } from '@/hooks/useProductScanner'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/hooks/useAuth'
+
 export function BarcodeInput() {
-  const { scanValue, scanState, isSearching, inputRef, handleChange, handleKeyDown, handleSubmit } = useBarcodeScan()
+  const { scanValue, scanState, isSearching, inputRef, handleChange, handleKeyDown } = useProductScanner()
 
   const borderColor =
     scanState === 'success' ? 'var(--success)' :
@@ -28,7 +27,7 @@ export function BarcodeInput() {
         background: 'var(--surface)',
       }}
     >
-      {/* Barcode icon */}
+      {/* Scanner Icon */}
       <div className="flex-shrink-0" style={{ color: scanState === 'idle' ? 'var(--primary)' : borderColor }}>
         {isSearching ? (
           <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
@@ -44,10 +43,12 @@ export function BarcodeInput() {
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
         ) : (
-          /* Barcode icon */
+          /* QR / Barcode Scanner Icon */
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 9h1v6H3zm4 0h2v6H7zm4 0h1v6h-1zm3 0h1v6h-1zm3 0h2v6h-2z"/>
-            <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth="1.5"/>
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <path d="M14 14h3v3h-3zM17 17h4v4h-4zM14 20h3v1h-3z" />
           </svg>
         )}
       </div>
@@ -66,9 +67,9 @@ export function BarcodeInput() {
         onChange={e => handleChange(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={
-          scanState === 'success' ? 'Product added! Scan next...' :
+          scanState === 'success' ? 'Product added! Scan next label...' :
           scanState === 'error'   ? 'Product not found. Try again...' :
-          'Scan barcode or type and press Enter'
+          'Scan QR / SKU label or type code and press Enter'
         }
         className="flex-1 bg-transparent text-sm font-mono outline-none"
         style={{
@@ -77,10 +78,10 @@ export function BarcodeInput() {
                  'var(--text-primary)',
           caretColor: 'var(--primary)',
         }}
-        aria-label="Barcode scanner input. F2 to refocus."
+        aria-label="QR / SKU product scanner input. Press F2 to refocus."
       />
 
-      {/* Status badge */}
+      {/* Clear button */}
       {scanValue.length > 0 && (
         <button
           type="button"
@@ -95,7 +96,7 @@ export function BarcodeInput() {
         </button>
       )}
 
-      {/* F2 hint */}
+      {/* F2 shortcut hint */}
       {scanValue.length === 0 && (
         <kbd
           className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded"

@@ -248,27 +248,52 @@ body {
 }
 
 /* ============================================================
-   NO PRINT / PRINT ONLY
+   PRINT STYLES — SINGLE PERFECT A4 PAGE FIT
    ============================================================ */
 @media print {
-  .no-print { display: none !important; }
-  .print-only { display: block !important; }
+  @page {
+    size: A4 portrait;
+    margin: 6mm 8mm;
+  }
 
-  body { background: white !important; color: black !important; }
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print, nav, header, aside, .sidebar, .topbar, .billing-actions-bar {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .page-break-after {
+    page-break-after: always;
+    break-after: page;
+  }
 
   .print-a4 {
-    width: 210mm;
-    min-height: 297mm;
-    padding: 12mm;
-    background: white;
-    font-family: 'Inter', sans-serif;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 4mm 6mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    border-radius: 0 !important;
   }
+
   .print-thermal {
     width: 72mm;
-    padding: 3mm;
+    padding: 2mm;
     background: white;
     font-family: 'Courier New', monospace;
     font-size: 11px;
   }
-  nav, aside, .sidebar, .topbar, .billing-actions-bar { display: none !important; }
 }

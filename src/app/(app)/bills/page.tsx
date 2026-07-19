@@ -179,8 +179,8 @@ export default function BillsPage() {
                       <div className="flex items-center gap-2">
                         <Link href={`/bills/${inv.id}`} className="text-xs font-medium hover:underline"
                           style={{ color: 'var(--primary)' }}>View</Link>
-                        <button onClick={() => window.print()} className="text-xs hover:underline"
-                          style={{ color: 'var(--text-secondary)' }}>Print</button>
+                        <Link href={`/bills/${inv.id}?autoPrint=true`} className="text-xs hover:underline"
+                          style={{ color: 'var(--text-secondary)' }}>Print</Link>
                         {inv.status === 'active' && (
                           <button
                             onClick={() => handleCancel(inv.id, inv.invoice_number)}

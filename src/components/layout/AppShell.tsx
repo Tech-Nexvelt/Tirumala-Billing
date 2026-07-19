@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)' }}>
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:block no-print">
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -97,25 +97,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content area */}
       <div
-        className="flex flex-col min-h-screen transition-all duration-300"
+        className="flex flex-col min-h-screen transition-all duration-300 print:!ml-0 print:!p-0 print:!static print:w-full"
         style={{ marginLeft }}
       >
         {/* Top bar */}
-        <TopBar sidebarCollapsed={sidebarCollapsed} />
+        <div className="no-print">
+          <TopBar sidebarCollapsed={sidebarCollapsed} />
+        </div>
 
         {/* Page content */}
         <main
-          className="flex-1 overflow-auto"
+          className="flex-1 overflow-auto print:!p-0 print:!m-0 print:!overflow-visible print:w-full"
           style={{ paddingBottom: '80px' }}
         >
-          <div className="animate-fade-in">
+          <div className="animate-fade-in print:!p-0 print:!m-0 print:w-full">
             {children}
           </div>
         </main>
       </div>
 
       {/* Mobile bottom nav */}
-      <div className="lg:hidden">
+      <div className="lg:hidden no-print">
         <MobileNav />
       </div>
     </div>

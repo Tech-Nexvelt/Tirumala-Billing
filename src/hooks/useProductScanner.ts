@@ -4,25 +4,31 @@ import { createClient } from '@/lib/supabase/client'
 import { useBillingStore } from '@/store/billingStore'
 import { useAuth } from '@/hooks/useAuth'
 import type { Product } from '@/types/database'
+import type { ScannerState } from '@/types/scanner'
 import { FeedbackService } from '@/services/feedbackService'
+import { ProductCodeService } from '@/services/productCodeService'
 import { toast } from 'sonner'
 
-export type ScanState = 'idle' | 'scanning' | 'success' | 'error'
+const codeService = new ProductCodeService()
 
-interface UseBarcodeScanOptions {
+interface UseProductScannerOptions {
   onProductFound?: (product: Product) => void
-  onProductNotFound?: (barcode: string) => void
+  onProductNotFound?: (code: string) => void
   autoFocus?: boolean
 }
 
-export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
+export function useProductScanner(options: UseProductScannerOptions = {}) {
   const { onProductFound, onProductNotFound, autoFocus = true } = options
   const { store } = useAuth()
 
   const [scanValue, setScanValue] = useState('')
-  const [scanState, setScanState] = useState<ScanState>('idle')
+  const [scannerState, setScannerState] = useState<ScannerState>('READY')
   const [isSearching, setIsSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  
+  // In-memory Product Cache Map to eliminate redundant DB lookups on repeated scans
+  const productCacheRef = useRef<Map<string, Product>>(new Map())
+
   const supabase = createClient()
   const { addItem } = useBillingStore()
 
@@ -33,7 +39,6 @@ export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
     })
   }, [])
 
-  // Refocus when window regains focus
   useEffect(() => {
     if (!autoFocus) return
     focus()
@@ -54,29 +59,42 @@ export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
     return () => window.removeEventListener('keydown', handleKey)
   }, [focus])
 
-  // Product Lookup Logic by SKU / Barcode / Product ID
-  const lookupBarcode = useCallback(async (barcode: string, seqId?: string, channel?: any) => {
-    if (!barcode.trim()) return
+  // High-performance Product Lookup Pipeline (Cache -> DB Fallback)
+  const lookupCode = useCallback(async (rawCode: string, seqId?: string, channel?: any) => {
+    const cleanCode = codeService.normalize(rawCode)
+    if (!cleanCode) return
 
     setIsSearching(true)
-    setScanState('scanning')
+    setScannerState('PROCESSING')
 
     try {
-      const cleanVal = barcode.trim()
-      const { data: products, error } = await supabase
-        .from('products')
-        .select('*, categories(name)')
-        .or(`sku.ilike.${cleanVal},barcode.ilike.${cleanVal},id.eq.${cleanVal}`)
-        .eq('status', 'active')
-        .is('deleted_at', null)
-        .limit(1)
+      let product: Product | undefined
 
-      if (error) throw error
+      // Step 1: Check in-memory cache
+      if (productCacheRef.current.has(cleanCode)) {
+        product = productCacheRef.current.get(cleanCode)
+      } else {
+        // Step 2: DB Fallback query
+        const { data: products, error } = await supabase
+          .from('products')
+          .select('*, categories(name)')
+          .or(`sku.ilike.${cleanCode},barcode.ilike.${cleanCode},id.eq.${cleanCode}`)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .limit(1)
 
-      const product = products?.[0] as Product | undefined
+        if (error) throw error
+
+        product = products?.[0] as Product | undefined
+        if (product) {
+          productCacheRef.current.set(cleanCode, product)
+          if (product.sku) productCacheRef.current.set(product.sku.toUpperCase(), product)
+          if (product.barcode) productCacheRef.current.set(product.barcode.toUpperCase(), product)
+        }
+      }
 
       if (product) {
-        // Add to active invoice cart (automatically increments qty if already present)
+        // Add to bill (handles duplicates by auto-incrementing quantity)
         addItem({
           product_id: product.id,
           product_name: product.name,
@@ -87,7 +105,7 @@ export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
           discount_percent: 0,
         })
 
-        setScanState('success')
+        setScannerState('SUCCESS')
         FeedbackService.triggerSuccess()
         toast.success(`Scanned: ${product.name}`, {
           description: `SKU: ${product.sku} • Price: ₹${product.selling_price.toLocaleString('en-IN')}`,
@@ -101,36 +119,43 @@ export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
           channel.send({
             type: 'broadcast',
             event: 'ack',
-            payload: { seqId, status: 'success', productName: product.name }
+            payload: { seqId, status: 'success', productName: product.name, sku: product.sku }
           })
         }
 
-        // Reset state back to idle
         setTimeout(() => {
-          setScanState('idle')
+          setScannerState('READY')
           setScanValue('')
           focus()
         }, 500)
 
       } else {
-        setScanState('error')
+        setScannerState('ERROR')
         FeedbackService.triggerError()
-        toast.error(`Product not found: ${barcode}`, { duration: 2500 })
-        onProductNotFound?.(barcode)
+        toast.error(`Product not found: ${cleanCode}`, { duration: 2500 })
+        onProductNotFound?.(cleanCode)
+
+        if (seqId && channel) {
+          channel.send({
+            type: 'broadcast',
+            event: 'ack',
+            payload: { seqId, status: 'not_found', errorMessage: 'Product not found in catalog' }
+          })
+        }
 
         setTimeout(() => {
-          setScanState('idle')
+          setScannerState('READY')
           setScanValue('')
           focus()
         }, 1200)
       }
     } catch (err) {
-      console.error('[POS QR Scan error]', err)
-      setScanState('error')
+      console.error('[Product Scanner Error]', err)
+      setScannerState('ERROR')
       FeedbackService.triggerError()
-      toast.error('Scan lookup failed')
+      toast.error('Product lookup failed')
       setTimeout(() => {
-        setScanState('idle')
+        setScannerState('READY')
         setScanValue('')
         focus()
       }, 1200)
@@ -139,7 +164,7 @@ export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
     }
   }, [supabase, addItem, focus, onProductFound, onProductNotFound])
 
-  // Supabase Realtime Listener for Mobile Camera Scans
+  // Supabase Realtime Listener for Mobile Scans
   useEffect(() => {
     if (!store?.id) return
 
@@ -153,7 +178,7 @@ export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
         const { barcode, sku, seqId } = payload.payload || {}
         const targetCode = sku || barcode
         if (targetCode) {
-          lookupBarcode(targetCode, seqId, channel)
+          lookupCode(targetCode, seqId, channel)
         }
       })
       .subscribe(async (status) => {
@@ -165,17 +190,17 @@ export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
     return () => {
       channel.unsubscribe()
     }
-  }, [store?.id, supabase, lookupBarcode])
+  }, [store?.id, supabase, lookupCode])
 
   const handleChange = useCallback((value: string) => {
     setScanValue(value)
-    setScanState('idle')
+    setScannerState('READY')
   }, [])
 
   const handleSubmit = useCallback((value: string) => {
     if (!value.trim()) return
-    lookupBarcode(value.trim())
-  }, [lookupBarcode])
+    lookupCode(value.trim())
+  }, [lookupCode])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -190,7 +215,8 @@ export function useBarcodeScan(options: UseBarcodeScanOptions = {}) {
 
   return {
     scanValue,
-    scanState,
+    scannerState,
+    scanState: scannerState === 'SUCCESS' ? 'success' : scannerState === 'ERROR' ? 'error' : scannerState === 'PROCESSING' ? 'scanning' : 'idle',
     isSearching,
     inputRef,
     focus,

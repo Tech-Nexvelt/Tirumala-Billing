@@ -169,21 +169,27 @@ export function InvoiceTable({ onSearchOpen }: { onSearchOpen: () => void }) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-24 px-8 text-center">
         <div
-          className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4"
-          style={{ background: 'var(--secondary-bg)' }}
+          className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-cyan-500/20"
+          style={{ background: 'rgba(0, 217, 217, 0.08)' }}
         >
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25"
-            style={{ color: 'var(--text-muted)' }}>
-            <path d="M3 9h1v6H3zm4 0h2v6H7zm4 0h1v6h-1zm3 0h1v6h-1zm3 0h2v6h-2z"/>
-            <rect x="2" y="6" width="20" height="12" rx="2"/>
+          {/* Vector QR Code Icon */}
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"
+            style={{ color: 'var(--primary)' }}>
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="3" height="3" rx="0.5" fill="currentColor" />
+            <rect x="18" y="14" width="3" height="3" rx="0.5" fill="currentColor" />
+            <rect x="14" y="18" width="3" height="3" rx="0.5" fill="currentColor" />
+            <rect x="18" y="18" width="3" height="3" rx="0.5" fill="currentColor" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-          Ready to scan
+        <h3 className="text-lg font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+          Ready to scan QR Label
         </h3>
-        <p className="text-sm max-w-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
-          Point your barcode scanner at any product barcode above.
-          Products will appear here instantly — no typing needed.
+        <p className="text-sm max-w-sm mb-6 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          Point your scanner or mobile phone camera at any product QR label above.
+          Items will be added instantly — zero typing needed.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <button
@@ -198,16 +204,16 @@ export function InvoiceTable({ onSearchOpen }: { onSearchOpen: () => void }) {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            Search Product
+            Search Catalog
           </button>
           <div
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-medium"
             style={{ background: 'rgba(0,217,217,0.08)', color: 'var(--primary)', border: '1px solid rgba(0,217,217,0.2)' }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
             </svg>
-            F2 to focus scanner
+            F2 to focus QR scanner
           </div>
         </div>
       </div>

@@ -1,7 +1,6 @@
 'use client'
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { useBillingStore } from '@/store/billingStore'
-import { useBarcodeScan } from '@/hooks/useBarcodeScan'
 import { useCreateInvoice } from '@/hooks/useInvoices'
 import { useAuth } from '@/hooks/useAuth'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
@@ -15,6 +14,8 @@ import { CustomerPanel } from '@/components/billing/CustomerPanel'
 import { PaymentPanel } from '@/components/billing/PaymentPanel'
 import { SearchProductDialog } from '@/components/billing/SearchProductDialog'
 import { SavedInvoiceDialog } from '@/components/billing/SavedInvoiceDialog'
+import { DeviceManagerModal } from '@/components/scanner/DeviceManagerModal'
+import { PairingQRModal } from '@/components/scanner/PairingQRModal'
 import { createClient } from '@/lib/supabase/client'
 import { useProductCacheStore } from '@/store/productCacheStore'
 import { FeedbackService } from '@/services/feedbackService'
@@ -41,27 +42,20 @@ export default function NewBillPage() {
   const createInvoice = useCreateInvoice()
 
   const [showSearch, setShowSearch] = useState(false)
-  const [showMobileScan, setShowMobileScan] = useState(false)
-  const [mobileScanUrl, setMobileScanUrl] = useState('')
+  const [showDeviceManager, setShowDeviceManager] = useState(false)
+  const [showPairingQR, setShowPairingQR] = useState(false)
   const [savedInvoice, setSavedInvoice] = useState<{ id: string; number: string } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   const { products, fetchProducts, syncProduct } = useProductCacheStore()
   const { addItem } = useBillingStore()
-  
+
   // Realtime scan queue variables
   const scanQueue = useRef<string[]>([])
   const processingQueue = useRef(false)
   const supabase = createClient()
 
-  // Setup mobile scanner PWA url on client mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setMobileScanUrl(`${window.location.origin}/scanner`)
-    }
-  }, [])
-
-  // Process scans sequentially from FIFO queue to prevent state write-loss races
+  // Process scans sequentially from FIFO queue
   const processQueue = async () => {
     if (processingQueue.current || scanQueue.current.length === 0) return
     processingQueue.current = true
@@ -69,31 +63,29 @@ export default function NewBillPage() {
     const barcode = scanQueue.current.shift()
     if (barcode) {
       try {
-        // 1. Search Zustand Memory Cache (sub-millisecond)
-        let product = products.find(p => p.barcode === barcode)
+        let product = products.find(p => p.sku === barcode || p.barcode === barcode)
 
-        // 2. Database Fallback lookup if not cached
         if (!product) {
           const { data, error } = await supabase
             .from('products')
             .select('*')
-            .eq('barcode', barcode)
+            .or(`sku.ilike.${barcode},barcode.ilike.${barcode},id.eq.${barcode}`)
             .is('deleted_at', null)
             .eq('status', 'active')
-            .single()
+            .limit(1)
 
-          if (!error && data) {
-            product = data
-            syncProduct(data) // update cache
+          if (!error && data && data.length > 0) {
+            product = data[0]
+            syncProduct(data[0])
           }
         }
 
         if (product) {
-          // 3. Add item / update State
           addItem({
             product_id: product.id,
             product_name: product.name,
-            sku: product.sku,
+            product_sku: product.sku,
+            product_barcode: product.barcode || null,
             quantity: 1,
             unit_price: product.selling_price,
             discount_percent: 0
@@ -110,14 +102,13 @@ export default function NewBillPage() {
     }
 
     processingQueue.current = false
-    processQueue() // execute next in queue
+    processQueue()
   }
 
-  // Subscribe to Realtime scans using store_id context (implicit session linking)
+  // Subscribe to Realtime scans
   useEffect(() => {
     if (!store?.id) return
 
-    // Warm Zustand cache with active products
     fetchProducts(store.id)
 
     const channel = supabase.channel(`store_scans:${store.id}`, {
@@ -126,42 +117,29 @@ export default function NewBillPage() {
 
     channel
       .on('broadcast', { event: 'new_scan' }, (payload: any) => {
-        const { seqId, barcode } = payload.payload
-        
-        // Enqueue scan processing
-        scanQueue.current.push(barcode)
-        processQueue()
+        const { seqId, barcode, sku } = payload.payload || {}
+        const code = sku || barcode
+        if (code) {
+          scanQueue.current.push(code)
+          processQueue()
 
-        // Respond with ACK confirmation back to phone immediately
-        channel.send({
-          type: 'broadcast',
-          event: 'ack',
-          payload: { seqId }
-        })
+          channel.send({
+            type: 'broadcast',
+            event: 'ack',
+            payload: { seqId }
+          })
+        }
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          // Track desktop register online state
           await channel.track({ device: 'desktop', online_at: new Date().toISOString() })
         }
       })
 
-    // Listen for database changes to keep cached products completely in sync
-    const dbSub = supabase
-      .channel('postgres-product-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-        if (payload.new) {
-          syncProduct(payload.new as any)
-        }
-      })
-      .subscribe()
-
     return () => {
       channel.unsubscribe()
-      dbSub.unsubscribe()
     }
   }, [store?.id, products.length])
-
 
   // Draft recovery notification
   useEffect(() => {
@@ -175,7 +153,7 @@ export default function NewBillPage() {
         },
       })
     }
-  }, []) // Only on mount
+  }, [])
 
   // Keyboard shortcuts
   useKeyboardShortcuts([
@@ -221,7 +199,6 @@ export default function NewBillPage() {
       return
     }
 
-    // Payment validation for split
     if (payment_method === 'split') {
       const splitTotal = split_payments.reduce((s, p) => s + p.amount, 0)
       if (Math.abs(splitTotal - summary.grand_total) > 0.5) {
@@ -252,12 +229,11 @@ export default function NewBillPage() {
       toast.success(`Invoice ${result.invoice.invoice_number} saved!`)
 
       if (action === 'print') {
-        // Brief delay to let dialog render, then print
         setTimeout(() => window.print(), 300)
       }
     } catch {
       // Error toast handled in hook
-    } finally {
+    } fontFinally: {
       setIsSaving(false)
     }
   }, [store, user, items, customer, payment_method, split_payments, delivery_charge, installation_charge, additional_discount, amount_tendered, notes, summary, createInvoice, clearBill])
@@ -272,7 +248,7 @@ export default function NewBillPage() {
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
-      {/* Top: Barcode Scanner Bar */}
+      {/* Top: Barcode/QR Scanner Bar */}
       <div
         className="flex-shrink-0 px-4 py-3 no-print"
         style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
@@ -286,12 +262,12 @@ export default function NewBillPage() {
             </p>
           </div>
 
-          {/* Barcode input — center, dominant */}
+          {/* Barcode input — center */}
           <div className="flex-1">
             <BarcodeInput />
           </div>
 
-          {/* Search product fallback */}
+          {/* Search product button */}
           <button
             id="search-product-btn"
             onClick={() => setShowSearch(true)}
@@ -313,18 +289,13 @@ export default function NewBillPage() {
             </kbd>
           </button>
 
-          {/* Mobile Scanner trigger */}
+          {/* Manage Mobile Scanners trigger */}
           <button
-            onClick={() => setShowMobileScan(true)}
-            className="flex items-center gap-2 h-10 px-3.5 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
-            style={{
-              background: 'var(--secondary-bg)',
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border)',
-            }}
-            title="Use phone as scanner"
+            onClick={() => setShowDeviceManager(true)}
+            className="flex items-center gap-2 h-10 px-3.5 rounded-lg text-sm font-semibold transition-colors flex-shrink-0 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20"
+            title="Manage paired mobile scanners"
           >
-            📱 <span className="hidden sm:inline">Phone Scan</span>
+            📱 <span className="hidden sm:inline">Mobile Scanners</span>
           </button>
 
           {/* Clear bill */}
@@ -348,7 +319,7 @@ export default function NewBillPage() {
           <InvoiceTable onSearchOpen={() => setShowSearch(true)} />
         </div>
 
-        {/* Right: Customer + Summary + Payment (desktop) */}
+        {/* Right: Customer + Summary + Payment */}
         <div
           className="hidden lg:flex flex-col w-96 flex-shrink-0 overflow-y-auto no-print"
           style={{ borderLeft: '1px solid var(--border)', background: 'var(--surface)' }}
@@ -431,32 +402,6 @@ export default function NewBillPage() {
         </div>
       </div>
 
-      {/* Mobile: Bottom summary panel */}
-      {items.length > 0 && (
-        <div
-          className="lg:hidden flex-shrink-0 p-4 no-print"
-          style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Grand Total</span>
-            <span className="text-xl font-bold font-number" style={{ color: 'var(--text-primary)' }}>
-              {formatCurrency(summary.grand_total)}
-            </span>
-          </div>
-          <button
-            onClick={() => handleSave('print')}
-            disabled={isSaving}
-            className="w-full h-12 rounded-xl font-bold text-base"
-            style={{
-              background: 'linear-gradient(135deg, #00D9D9, #35F5FF)',
-              color: '#0F172A',
-            }}
-          >
-            {isSaving ? 'Saving...' : 'Save & Print'}
-          </button>
-        </div>
-      )}
-
       {/* Product Search Dialog */}
       <SearchProductDialog open={showSearch} onClose={() => setShowSearch(false)} />
 
@@ -465,9 +410,7 @@ export default function NewBillPage() {
         <SavedInvoiceDialog
           invoiceId={savedInvoice.id}
           invoiceNumber={savedInvoice.number}
-          onClose={() => {
-            setSavedInvoice(null)
-          }}
+          onClose={() => setSavedInvoice(null)}
           onNewBill={() => {
             setSavedInvoice(null)
             clearBill()
@@ -475,62 +418,22 @@ export default function NewBillPage() {
         />
       )}
 
-      {/* Mobile Scanner QR Code Dialog */}
-      {showMobileScan && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in no-print">
-          <div
-            className="w-full max-w-sm rounded-2xl p-6 relative shadow-2xl border border-slate-700/50"
-            style={{ background: 'var(--surface)' }}
-          >
-            {/* Close button */}
-            <button
-              onClick={() => setShowMobileScan(false)}
-              className="absolute right-4 top-4 text-slate-400 hover:text-white transition-colors"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
+      {/* Desktop Fleet Device Manager Modal */}
+      {showDeviceManager && store?.id && (
+        <DeviceManagerModal
+          storeId={store.id}
+          onClose={() => setShowDeviceManager(false)}
+          onOpenPairingQR={() => setShowPairingQR(true)}
+        />
+      )}
 
-            {/* Content */}
-            <div className="text-center space-y-4">
-              <div className="mx-auto w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400 text-2xl animate-pulse">
-                📱
-              </div>
-              <div>
-                <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-                  Wireless Phone Scanner
-                </h3>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                  Scan the QR code below on your mobile device to open the dedicated scanner utility.
-                </p>
-              </div>
-
-              {/* QR Code */}
-              <div className="bg-white p-3.5 rounded-xl inline-block shadow-md">
-                {mobileScanUrl ? (
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(mobileScanUrl)}`}
-                    alt="Scanner Link QR Code"
-                    className="w-44 h-44 object-contain"
-                  />
-                ) : (
-                  <div className="w-44 h-44 flex items-center justify-center bg-slate-100 rounded-lg">
-                    <span className="text-xs text-slate-400">Loading URL...</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="text-left bg-slate-900/40 p-3 rounded-lg border border-slate-800 text-[11px] space-y-1.5" style={{ color: 'var(--text-secondary)' }}>
-                <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>Instructions:</p>
-                <p>1. Scan the QR code to open the scanner page on your phone.</p>
-                <p>2. Log in using your cashier credentials (done once).</p>
-                <p>3. Point the phone camera at product barcodes to instantly add them to this bill.</p>
-                <p className="text-[10px] text-slate-500 mt-1">Direct link: {mobileScanUrl}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* 2-Min Desktop Pairing QR Modal */}
+      {showPairingQR && store?.id && (
+        <PairingQRModal
+          storeId={store.id}
+          userId={user?.id}
+          onClose={() => setShowPairingQR(false)}
+        />
       )}
     </div>
   )

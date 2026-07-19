@@ -4,7 +4,7 @@ import { useInvoice, useCancelInvoice } from '@/hooks/useInvoices'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDateTime, formatDate } from '@/lib/utils/date'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { A4Invoice } from '@/components/billing/A4Invoice'
 import { ThermalReceipt } from '@/components/billing/ThermalReceipt'
@@ -16,6 +16,8 @@ export default function BillDetailPage({ params }: { params: Promise<{ id: strin
   const { data, isLoading } = useInvoice(id)
   const { store } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const autoPrint = searchParams.get('autoPrint') === 'true'
   const cancelInvoice = useCancelInvoice()
   const [printMode, setPrintMode] = useState<'a4' | 'thermal'>('a4')
 
@@ -24,6 +26,15 @@ export default function BillDetailPage({ params }: { params: Promise<{ id: strin
       setPrintMode(store.receipt_width === 'A4' ? 'a4' : 'thermal')
     }
   }, [store])
+
+  useEffect(() => {
+    if (data && autoPrint) {
+      const timer = setTimeout(() => {
+        window.print()
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [data, autoPrint])
 
   if (isLoading) {
     return (
@@ -62,7 +73,7 @@ export default function BillDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-6 max-w-4xl mx-auto space-y-6 print:!p-0 print:!m-0 print:!max-w-none print:w-full">
       {/* Header */}
       <div className="flex items-center justify-between no-print">
         <div className="flex items-center gap-3">

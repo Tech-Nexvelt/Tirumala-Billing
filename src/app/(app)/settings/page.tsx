@@ -3,14 +3,35 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { QRCodeSVG } from '@/components/products/labels/QRCodeSVG'
 
 const TABS = [
   { id: 'store', label: '🏪 Store Info' },
-  { id: 'barcode', label: '📦 Barcode' },
+  { id: 'qrcode', label: '🔳 QR Code' },
   { id: 'printer', label: '🖨️ Printer' },
   { id: 'users', label: '👥 Users' },
   { id: 'backup', label: '💾 Backup' },
 ]
+
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="p-5 rounded-xl space-y-4"
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+      <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
+      {children}
+    </div>
+  )
+}
+
+function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>{label}</label>
+      {children}
+      {hint && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const { store, profile, refreshProfile, isAdmin } = useAuth()
@@ -83,22 +104,6 @@ export default function SettingsPage() {
     e.target.style.borderColor = 'var(--border)'
     e.target.style.boxShadow = 'none'
   }
-
-  const SectionCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="p-5 rounded-xl space-y-4"
-      style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-      <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-      {children}
-    </div>
-  )
-
-  const Field = ({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) => (
-    <div>
-      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>{label}</label>
-      {children}
-      {hint && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
-    </div>
-  )
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -219,39 +224,48 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Barcode Settings */}
-      {activeTab === 'barcode' && (
+      {/* QR Code Settings */}
+      {activeTab === 'qrcode' && (
         <div className="space-y-4">
-          <SectionCard title="Barcode Configuration">
+          <SectionCard title="QR Code Configuration">
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Default Barcode Format">
-                <select className={inputClass} style={inputStyle} defaultValue="CODE128">
-                  <option value="CODE128">CODE128 (Recommended)</option>
-                  <option value="EAN13">EAN-13</option>
-                  <option value="EAN8">EAN-8</option>
+              <Field label="Default QR Code Format">
+                <select className={inputClass} style={inputStyle} defaultValue="QR_STANDARD">
+                  <option value="QR_STANDARD">Standard QR Code (Version 2) (Recommended)</option>
+                  <option value="QR_MICRO">Compact Micro QR Code</option>
+                  <option value="QR_HIGH_DENSITY">High Density Matrix</option>
                 </select>
               </Field>
               <Field label="Label Template Size">
-                <select className={inputClass} style={inputStyle} defaultValue="medium">
-                  <option value="small">Small (40×25mm)</option>
-                  <option value="medium">Medium (58×40mm)</option>
-                  <option value="large">Large (80×50mm)</option>
+                <select className={inputClass} style={inputStyle} defaultValue="100x150">
+                  <option value="100x150">Large Tag (100×150mm)</option>
+                  <option value="80x120">Standard Furniture (80×120mm)</option>
+                  <option value="70x100">Medium Tag (70×100mm)</option>
+                  <option value="50x75">Compact Tag (50×75mm)</option>
+                  <option value="thermal_roll">Thermal Roll (58mm continuous)</option>
+                  <option value="a4_grid">A4 Sheet Grid (2×4 Labels)</option>
                 </select>
               </Field>
             </div>
           </SectionCard>
 
-          <SectionCard title="Label Preview">
+          <SectionCard title="QR Label Preview">
             <div className="grid grid-cols-3 gap-4">
-              {['small', 'medium', 'large'].map(size => (
-                <div key={size}
-                  className="p-4 rounded-lg text-center border-2 cursor-pointer transition-all"
-                  style={{ border: '2px solid var(--border)' }}>
-                  <div className="text-2xl mb-2">🏷️</div>
-                  <p className="text-sm font-medium capitalize" style={{ color: 'var(--text-primary)' }}>{size}</p>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {size === 'small' ? '40×25mm' : size === 'medium' ? '58×40mm' : '80×50mm'}
-                  </p>
+              {[
+                { name: 'Large Tag', size: '100×150mm' },
+                { name: 'Standard Tag', size: '80×120mm' },
+                { name: 'Compact Tag', size: '50×75mm' },
+              ].map(item => (
+                <div key={item.name}
+                  className="p-4 rounded-xl text-center border cursor-pointer transition-all flex flex-col items-center justify-center space-y-2"
+                  style={{ background: 'var(--secondary-bg)', borderColor: 'var(--border)' }}>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200">
+                    <QRCodeSVG value="TF-DEMO-SKU-1001" size={48} darkColor="#0F172A" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
+                    <p className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{item.size}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -327,7 +341,7 @@ export default function SettingsPage() {
             className="p-4 rounded-lg text-sm"
             style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}
           >
-            Your data is securely stored in Supabase PostgreSQL with automatic daily backups.
+            Your data is secure and you can backup anytime.
           </div>
         </SectionCard>
       )}

@@ -81,6 +81,14 @@ export interface Product {
   updated_by: string | null
   created_at: string
   updated_at: string
+  // Optional Label & Spec Extensions
+  mrp?: number | null
+  brand?: string | null
+  color?: string | null
+  material?: string | null
+  dimensions?: string | null
+  warranty?: string | null
+  mfg_date?: string | null
   // Joined
   category_name?: string
 }

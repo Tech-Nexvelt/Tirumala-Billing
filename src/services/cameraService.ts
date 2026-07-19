@@ -1,64 +1,90 @@
 /**
  * CameraService
- * Handles hardware camera access, video constraints, and orientation changes.
+ * Handles hardware camera media streams, camera switching, torch, and focus constraints.
  */
 export class CameraService {
   private stream: MediaStream | null = null
+  private currentFacingMode: 'environment' | 'user' = 'environment'
 
   /**
-   * Request media devices and acquire user media video track stream.
-   * Attaches output to target HTMLVideoElement.
+   * Request user media video stream with optimal constraints.
    */
-  async startStream(videoElement: HTMLVideoElement): Promise<MediaStream> {
+  async startStream(
+    videoElement: HTMLVideoElement,
+    facingMode: 'environment' | 'user' = 'environment'
+  ): Promise<MediaStream> {
     this.stopStream()
+    this.currentFacingMode = facingMode
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment',
+          facingMode: { ideal: facingMode },
           width: { ideal: 1280 },
-          height: { ideal: 720 }
+          height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 60 },
         },
-        audio: false
+        audio: false,
       })
 
       videoElement.srcObject = this.stream
-      // Play immediately to start streaming
       await videoElement.play().catch(err => {
-        console.warn('[CameraService] Video autoplay blocked:', err)
+        console.warn('[CameraService] Video autoplay play() blocked:', err)
       })
+
+      // Attempt applying continuous focus mode if supported
+      const track = this.stream.getVideoTracks()[0]
+      if (track && 'applyConstraints' in track) {
+        try {
+          const caps = (track.getCapabilities?.() as any) || {}
+          if (caps.focusMode?.includes('continuous')) {
+            await track.applyConstraints({
+              advanced: [{ focusMode: 'continuous' } as any]
+            })
+          }
+        } catch {
+          // Focus constraint optional
+        }
+      }
 
       return this.stream
     } catch (err: any) {
-      console.error('[CameraService] Error accessing user camera:', err)
+      console.error('[CameraService] Error accessing video media stream:', err)
       throw new Error(err.message || 'Permission denied or camera unavailable')
     }
   }
 
   /**
-   * Safely stop all active media stream tracks and clear stream reference.
+   * Toggle between back (environment) and front (user) cameras.
+   */
+  async switchCamera(videoElement: HTMLVideoElement): Promise<'environment' | 'user'> {
+    const nextFacing = this.currentFacingMode === 'environment' ? 'user' : 'environment'
+    await this.startStream(videoElement, nextFacing)
+    return nextFacing
+  }
+
+  /**
+   * Stop all active stream tracks.
    */
   stopStream() {
     if (this.stream) {
       this.stream.getTracks().forEach(track => {
         track.stop()
-        console.log(`[CameraService] Stopped track: ${track.label}`)
       })
       this.stream = null
     }
   }
 
   /**
-   * Apply advanced constraints to turn video track flashlight/torch on or off.
+   * Toggle camera torch flashlight.
    */
   async toggleTorch(enable: boolean): Promise<boolean> {
     if (!this.stream) return false
-
     const track = this.stream.getVideoTracks()[0]
     if (!track) return false
 
     try {
-      const capabilities = track.getCapabilities() as any
+      const capabilities = (track.getCapabilities?.() as any) || {}
       if (capabilities.torch) {
         await track.applyConstraints({
           advanced: [{ torch: enable }]
@@ -67,15 +93,16 @@ export class CameraService {
       }
       return false
     } catch (err) {
-      console.warn('[CameraService] Torch toggle failed:', err)
+      console.warn('[CameraService] Torch constraint failed:', err)
       return false
     }
   }
 
-  /**
-   * Check if camera stream is currently active.
-   */
   isActive(): boolean {
     return this.stream !== null && this.stream.getVideoTracks().some(t => t.readyState === 'live')
+  }
+
+  getFacingMode() {
+    return this.currentFacingMode
   }
 }

@@ -3,8 +3,11 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useProducts, useDeleteProduct, useCategories } from '@/hooks/useProducts'
 import { formatCurrency } from '@/lib/utils/currency'
-import { formatDate } from '@/lib/utils/date'
-import { BarcodePreview } from '@/components/products/BarcodePreview'
+import { useLabelConfig } from '@/hooks/useLabelConfig'
+import { LabelPrintModal } from '@/components/products/labels/LabelPrintModal'
+import { LabelCustomizerModal } from '@/components/products/labels/LabelCustomizerModal'
+import { LabelHistoryModal } from '@/components/products/labels/LabelHistoryModal'
+import type { PrintableProduct } from '@/types/label'
 import { toast } from 'sonner'
 
 export default function ProductsPage() {
@@ -12,7 +15,14 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [showBulkPrint, setShowBulkPrint] = useState(false)
+
+  // Modal controls
+  const [printModalOpen, setPrintModalOpen] = useState(false)
+  const [customizerOpen, setCustomizerOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [selectedProductsForPrint, setSelectedProductsForPrint] = useState<PrintableProduct[]>([])
+
+  const { config, updateConfig, resetConfig } = useLabelConfig()
 
   const { data: products = [], isLoading } = useProducts({
     search, category_id: categoryFilter, status: statusFilter,
@@ -38,26 +48,77 @@ export default function ProductsPage() {
     await deleteProduct.mutateAsync(id)
   }
 
+  // Label Printing Handlers
+  const handlePrintSingle = (product: PrintableProduct) => {
+    setSelectedProductsForPrint([product])
+    setPrintModalOpen(true)
+  }
+
+  const handlePrintBatchSelected = () => {
+    const list = products.filter(p => selectedIds.has(p.id))
+    if (list.length === 0) {
+      toast.error('Select at least one product to print labels')
+      return
+    }
+    setSelectedProductsForPrint(list)
+    setPrintModalOpen(true)
+  }
+
+  const handlePrintLowStock = () => {
+    const lowStockList = products.filter(p => p.stock_qty < 5)
+    if (lowStockList.length === 0) {
+      toast.info('No low stock products found (< 5 qty)')
+      return
+    }
+    setSelectedProductsForPrint(lowStockList)
+    setPrintModalOpen(true)
+  }
+
   return (
     <div className="p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Products</h1>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Products Catalog</h1>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             {products.length} product{products.length !== 1 ? 's' : ''} in catalog
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {selectedIds.size > 0 && (
             <button
-              onClick={() => setShowBulkPrint(true)}
-              className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium"
-              style={{ background: 'var(--secondary-bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              onClick={handlePrintBatchSelected}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-semibold shadow-sm transition-all"
+              style={{ background: 'var(--primary)', color: '#0F172A' }}
             >
-              🖨️ Print {selectedIds.size} Barcodes
+              🏷️ Print {selectedIds.size} Selected Label{selectedIds.size > 1 ? 's' : ''}
             </button>
           )}
+
+          <button
+            onClick={handlePrintLowStock}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold"
+            style={{ background: 'var(--secondary-bg)', color: 'var(--warning)', border: '1px solid var(--border)' }}
+          >
+            ⚠️ Low Stock Labels
+          </button>
+
+          <button
+            onClick={() => setHistoryOpen(true)}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium"
+            style={{ background: 'var(--secondary-bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+          >
+            📜 History
+          </button>
+
+          <button
+            onClick={() => setCustomizerOpen(true)}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium"
+            style={{ background: 'var(--secondary-bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+          >
+            ⚙️ Label Customizer
+          </button>
+
           <Link
             href="/products/new"
             id="add-product-btn"
@@ -119,7 +180,7 @@ export default function ProductsPage() {
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
       >
         <div className="overflow-x-auto">
-          <table className="w-full" style={{ minWidth: '780px' }}>
+          <table className="w-full" style={{ minWidth: '820px' }}>
             <thead>
               <tr style={{ background: 'var(--secondary-bg)', borderBottom: '1px solid var(--border)' }}>
                 <th className="px-4 py-3 text-left w-10">
@@ -226,10 +287,17 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handlePrintSingle(product)}
+                          className="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-all"
+                          style={{ background: 'rgba(0,217,217,0.12)', color: 'var(--primary)' }}
+                        >
+                          🏷️ Label
+                        </button>
                         <Link
                           href={`/products/${product.id}/edit`}
                           className="text-xs font-medium hover:underline"
-                          style={{ color: 'var(--primary)' }}
+                          style={{ color: 'var(--text-secondary)' }}
                         >
                           Edit
                         </Link>
@@ -250,33 +318,30 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Bulk print dialog placeholder */}
-      {showBulkPrint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <h2 className="text-lg font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-              Print {selectedIds.size} Barcode{selectedIds.size > 1 ? 's' : ''}
-            </h2>
-            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-              Selected products barcode labels will be printed.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { window.print(); setShowBulkPrint(false) }}
-                className="flex-1 h-10 rounded-lg font-semibold text-sm"
-                style={{ background: 'linear-gradient(135deg, #00D9D9, #35F5FF)', color: '#0F172A' }}
-              >
-                Print Now
-              </button>
-              <button onClick={() => setShowBulkPrint(false)}
-                className="flex-1 h-10 rounded-lg font-medium text-sm"
-                style={{ background: 'var(--secondary-bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* PRINT MODAL */}
+      <LabelPrintModal
+        isOpen={printModalOpen}
+        onClose={() => setPrintModalOpen(false)}
+        products={selectedProductsForPrint}
+        config={config}
+        onUpdateConfig={updateConfig}
+        onOpenCustomizer={() => setCustomizerOpen(true)}
+      />
+
+      {/* CUSTOMIZER MODAL */}
+      <LabelCustomizerModal
+        isOpen={customizerOpen}
+        onClose={() => setCustomizerOpen(false)}
+        config={config}
+        onUpdateConfig={updateConfig}
+        onResetConfig={resetConfig}
+      />
+
+      {/* AUDIT LOG HISTORY MODAL */}
+      <LabelHistoryModal
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   )
 }
