@@ -19,60 +19,74 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { addItem } = useBillingStore()
   const supabase = createClient()
 
-  // Poll the local offline-friendly mobile scan queue globally
+  // Listen to mobile scan events globally via Supabase Realtime (No HTTP polling)
   useEffect(() => {
     if (!store?.id) return
 
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/mobile-scan?store_id=${store.id}`)
-        if (!res.ok) return
-        const data = await res.json()
-        if (data.barcodes && data.barcodes.length > 0) {
-          for (const barcode of data.barcodes) {
-            console.log('[Global Scan] Mobile scan resolved:', barcode)
-            
-            // Perform barcode lookup
-            const { data: products, error } = await supabase
-              .from('products')
-              .select('*, categories(name)')
-              .eq('barcode', barcode.trim().toUpperCase())
-              .eq('status', 'active')
-              .is('deleted_at', null)
-              .limit(1)
+    // Don't register duplicate listener if already on /billing/new (which has its own queue handler)
+    if (pathname === '/billing/new') return
 
-            if (error) throw error
+    const channel = supabase.channel(`store_scans:${store.id}`, {
+      config: { broadcast: { self: false, ack: false } }
+    })
 
-            const product = products?.[0]
-            if (product) {
-              // Add to global Zustand billing store
-              addItem({
-                product_id: product.id,
-                product_name: product.name,
-                product_sku: product.sku,
-                product_barcode: product.barcode,
-                quantity: 1,
-                unit_price: product.selling_price,
-                discount_percent: 0,
-              })
+    channel
+      .on('broadcast', { event: 'new_scan' }, async (payload: any) => {
+        const { barcode, sku, seqId } = payload.payload || {}
+        const code = sku || barcode
+        if (!code) return
 
-              toast.success(`Added ${product.name} to bill`, { duration: 3000 })
+        console.log('[Global Scan] Mobile scan event received:', code)
 
-              // Navigate to the billing page if not already there
-              if (pathname !== '/billing/new') {
-                router.push('/billing/new')
-              }
-            } else {
-              toast.error(`Scanned product not found: ${barcode}`)
+        try {
+          const cleanCode = code.trim().toUpperCase()
+          const { data: products, error } = await supabase
+            .from('products')
+            .select('*, categories(name)')
+            .or(`sku.ilike.${cleanCode},barcode.ilike.${cleanCode},id.eq.${cleanCode}`)
+            .eq('status', 'active')
+            .is('deleted_at', null)
+            .limit(1)
+
+          if (error) throw error
+
+          const product = products?.[0]
+          if (product) {
+            addItem({
+              product_id: product.id,
+              product_name: product.name,
+              product_sku: product.sku,
+              product_barcode: product.barcode,
+              quantity: 1,
+              unit_price: product.selling_price,
+              discount_percent: 0,
+            })
+
+            toast.success(`Scanned: ${product.name}`, { duration: 3000 })
+
+            if (pathname !== '/billing/new') {
+              router.push('/billing/new')
             }
-          }
-        }
-      } catch (err) {
-        console.error('[Global Scan Error]', err)
-      }
-    }, 1000) // Poll every 1 second for instant response
 
-    return () => clearInterval(interval)
+            if (seqId) {
+              channel.send({
+                type: 'broadcast',
+                event: 'ack',
+                payload: { seqId, status: 'success', productName: product.name, sku: product.sku }
+              })
+            }
+          } else {
+            toast.error(`Product not found: ${code}`)
+          }
+        } catch (err) {
+          console.error('[Global Scan Error]', err)
+        }
+      })
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe()
+    }
   }, [store?.id, pathname, router, addItem, supabase])
 
   useEffect(() => {
