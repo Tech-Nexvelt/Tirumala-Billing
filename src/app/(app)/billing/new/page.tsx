@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, Suspense } from 'react'
 import { useBillingStore } from '@/store/billingStore'
 import { useCreateInvoice } from '@/hooks/useInvoices'
 import { useAuth } from '@/hooks/useAuth'
@@ -20,7 +20,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useProductCacheStore } from '@/store/productCacheStore'
 import { FeedbackService } from '@/services/feedbackService'
 
-export default function NewBillPage() {
+function NewBillContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const {
@@ -502,5 +502,17 @@ export default function NewBillPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function NewBillPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 text-center text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+        Loading bill generator...
+      </div>
+    }>
+      <NewBillContent />
+    </Suspense>
   )
 }

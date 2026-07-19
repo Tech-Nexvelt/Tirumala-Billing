@@ -1,5 +1,5 @@
 'use client'
-import { use, useState, useEffect } from 'react'
+import { use, useState, useEffect, Suspense } from 'react'
 import { useInvoice, useCancelInvoice } from '@/hooks/useInvoices'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDateTime, formatDate } from '@/lib/utils/date'
@@ -11,7 +11,7 @@ import { ThermalReceipt } from '@/components/billing/ThermalReceipt'
 import { toast } from 'sonner'
 import { shareInvoiceViaWhatsApp } from '@/lib/utils/pdfShare'
 
-export default function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
+function BillDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { data, isLoading } = useInvoice(id)
   const { store } = useAuth()
@@ -181,5 +181,17 @@ export default function BillDetailPage({ params }: { params: Promise<{ id: strin
         )}
       </div>
     </div>
+  )
+}
+
+export default function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={
+      <div className="p-6 text-center text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+        Loading invoice...
+      </div>
+    }>
+      <BillDetailContent params={params} />
+    </Suspense>
   )
 }
