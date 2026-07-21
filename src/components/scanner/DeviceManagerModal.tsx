@@ -27,6 +27,7 @@ export function DeviceManagerModal({ storeId, onClose, onOpenPairingQR }: Device
         .from('scanner_devices' as any)
         .select('*')
         .eq('store_id', storeId)
+        .eq('status', 'active')
         .order('created_at', { ascending: false }) as any)
 
       if (devErr) throw devErr
@@ -65,6 +66,8 @@ export function DeviceManagerModal({ storeId, onClose, onOpenPairingQR }: Device
       const ok = await PairingService.revokeDevice(deviceId, 'Revoked from Desktop Fleet Manager')
       if (ok) {
         toast.success(`Revoked "${deviceName}"`)
+        // Immediately remove revoked device from state so it disappears from UI
+        setDevices(prev => prev.filter(d => d.id !== deviceId))
         fetchDevices()
       } else {
         toast.error('Failed to revoke scanner')

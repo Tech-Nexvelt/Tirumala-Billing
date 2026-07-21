@@ -59,6 +59,26 @@ export class DeviceStorageService {
     localStorage.setItem(STORAGE_KEYS.DEVICE_NAME, name)
   }
 
+  static getSavedDevice(): any | null {
+    if (typeof window === 'undefined') return null
+    const id = localStorage.getItem(STORAGE_KEYS.DEVICE_ID)
+    const store_id = localStorage.getItem(STORAGE_KEYS.STORE_ID)
+    const counter_id = localStorage.getItem(STORAGE_KEYS.COUNTER_ID)
+    const device_name = localStorage.getItem(STORAGE_KEYS.DEVICE_NAME) || 'Mobile Scanner'
+
+    if (!id || !store_id) return null
+
+    return {
+      id,
+      store_id,
+      counter_id,
+      device_name,
+      status: 'active',
+      app_version: '2.2.0',
+      last_seen_at: new Date().toISOString(),
+    }
+  }
+
   static clearPairing() {
     if (typeof window === 'undefined') return
     localStorage.removeItem(STORAGE_KEYS.TOKEN)

@@ -22,13 +22,21 @@ export function useAutoReconnect() {
 
     const validateSavedPairing = async () => {
       const storedToken = DeviceStorageService.getPairingToken()
+      const cachedDevice = DeviceStorageService.getSavedDevice()
 
       if (!storedToken) {
         if (active) setState('UNPAIRED')
         return
       }
 
-      if (active) setState('VALIDATING')
+      // Pre-fill from local cache for instant pairing connection
+      if (cachedDevice) {
+        setDevice(cachedDevice)
+        setState('CONNECTED')
+        HeartbeatService.start(cachedDevice.id, storedToken)
+      } else {
+        setState('VALIDATING')
+      }
 
       try {
         const validDevice = await PairingService.validateToken(storedToken)
@@ -37,16 +45,21 @@ export function useAutoReconnect() {
         if (validDevice) {
           setDevice(validDevice)
           setState('CONNECTED')
-          // Launch Telemetry Heartbeat (15s loop)
           HeartbeatService.start(validDevice.id, storedToken)
         } else {
-          // Token revoked or deleted
+          // Token explicitly revoked by Desktop POS
           DeviceStorageService.clearPairing()
+          HeartbeatService.stop()
+          setDevice(null)
           setState('REVOKED')
         }
       } catch (err) {
-        console.error('[useAutoReconnect] Validation error:', err)
-        if (active) setState('ERROR')
+        console.warn('[useAutoReconnect] Background validation network hiccup (retaining cached pairing):', err)
+        // Network error/offline — KEEP paired! Do not unpair phone!
+        if (cachedDevice && active) {
+          setDevice(cachedDevice)
+          setState('CONNECTED')
+        }
       }
     }
 
