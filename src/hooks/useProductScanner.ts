@@ -164,33 +164,7 @@ export function useProductScanner(options: UseProductScannerOptions = {}) {
     }
   }, [supabase, addItem, focus, onProductFound, onProductNotFound])
 
-  // Supabase Realtime Listener for Mobile Scans
-  useEffect(() => {
-    if (!store?.id) return
 
-    const storeId = store.id
-    const channel = supabase.channel(`store_scans:${storeId}`, {
-      config: { broadcast: { self: false, ack: false } }
-    })
-
-    channel
-      .on('broadcast', { event: 'new_scan' }, (payload: any) => {
-        const { barcode, sku, seqId } = payload.payload || {}
-        const targetCode = sku || barcode
-        if (targetCode) {
-          lookupCode(targetCode, seqId, channel)
-        }
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ device: 'desktop', online_at: new Date().toISOString() })
-        }
-      })
-
-    return () => {
-      channel.unsubscribe()
-    }
-  }, [store?.id, supabase, lookupCode])
 
   const handleChange = useCallback((value: string) => {
     setScanValue(value)

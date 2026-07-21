@@ -116,96 +116,12 @@ function NewBillContent() {
     loadDuplicate()
   }, []) // run once on mount
 
-  // Realtime scan queue variables
-  const scanQueue = useRef<string[]>([])
-  const processingQueue = useRef(false)
-  const supabase = createClient()
-
-  // Process scans sequentially from FIFO queue
-  const processQueue = async () => {
-    if (processingQueue.current || scanQueue.current.length === 0) return
-    processingQueue.current = true
-
-    const barcode = scanQueue.current.shift()
-    if (barcode) {
-      try {
-        let product = products.find(p => p.sku === barcode || p.barcode === barcode)
-
-        if (!product) {
-          const { data, error } = await supabase
-            .from('products')
-            .select('*')
-            .or(`sku.ilike.${barcode},barcode.ilike.${barcode},id.eq.${barcode}`)
-            .is('deleted_at', null)
-            .eq('status', 'active')
-            .limit(1)
-
-          if (!error && data && data.length > 0) {
-            product = data[0]
-            syncProduct(data[0])
-          }
-        }
-
-        if (product) {
-          addItem({
-            product_id: product.id,
-            product_name: product.name,
-            product_sku: product.sku,
-            product_barcode: product.barcode || null,
-            quantity: 1,
-            unit_price: product.selling_price,
-            discount_percent: 0
-          })
-          FeedbackService.triggerSuccess()
-          toast.success(`Scanned: ${product.name}`)
-        } else {
-          FeedbackService.triggerError()
-          toast.error(`Unknown barcode: ${barcode}`)
-        }
-      } catch (err) {
-        console.error('[NewBillPage] Scan processing failed:', err)
-      }
-    }
-
-    processingQueue.current = false
-    processQueue()
-  }
-
-  // Subscribe to Realtime scans
+  // Prefetch store products for instant search
   useEffect(() => {
-    if (!store?.id) return
-
-    fetchProducts(store.id)
-
-    const channel = supabase.channel(`store_scans:${store.id}`, {
-      config: { broadcast: { self: false, ack: false } }
-    })
-
-    channel
-      .on('broadcast', { event: 'new_scan' }, (payload: any) => {
-        const { seqId, barcode, sku } = payload.payload || {}
-        const code = sku || barcode
-        if (code) {
-          scanQueue.current.push(code)
-          processQueue()
-
-          channel.send({
-            type: 'broadcast',
-            event: 'ack',
-            payload: { seqId }
-          })
-        }
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ device: 'desktop', online_at: new Date().toISOString() })
-        }
-      })
-
-    return () => {
-      channel.unsubscribe()
+    if (store?.id) {
+      fetchProducts(store.id)
     }
-  }, [store?.id, products.length])
+  }, [store?.id, fetchProducts])
 
   // Draft recovery notification
   useEffect(() => {

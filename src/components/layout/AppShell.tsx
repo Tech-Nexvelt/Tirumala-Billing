@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useBillingStore } from '@/store/billingStore'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { FeedbackService } from '@/services/feedbackService'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { MobileNav } from './MobileNav'
@@ -19,12 +20,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { addItem } = useBillingStore()
   const supabase = createClient()
 
-  // Listen to mobile scan events globally via Supabase Realtime (No HTTP polling)
+  // Unified Global Mobile Scanner Listener
   useEffect(() => {
     if (!store?.id) return
-
-    // Don't register duplicate listener if already on /billing/new (which has its own queue handler)
-    if (pathname === '/billing/new') return
 
     const channel = supabase.channel(`store_scans:${store.id}`, {
       config: { broadcast: { self: false, ack: false } }
@@ -36,10 +34,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const code = sku || barcode
         if (!code) return
 
-        console.log('[Global Scan] Mobile scan event received:', code)
+        console.log('[Global Mobile Scan] Code received:', code)
 
         try {
           const cleanCode = code.trim().toUpperCase()
+
+          // Fast DB Query by SKU, Barcode, or ID
           const { data: products, error } = await supabase
             .from('products')
             .select('*, categories(name)')
@@ -52,6 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           const product = products?.[0]
           if (product) {
+            // Add product to bill cart
             addItem({
               product_id: product.id,
               product_name: product.name,
@@ -62,12 +63,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               discount_percent: 0,
             })
 
-            toast.success(`Scanned: ${product.name}`, { duration: 3000 })
+            FeedbackService.triggerSuccess()
+            toast.success(`Scanned: ${product.name} — Added to Bill`, { duration: 3000 })
 
+            // Auto-navigate to New Bill page if on any other page
             if (pathname !== '/billing/new') {
               router.push('/billing/new')
             }
 
+            // Send ACK back to phone for green tick feedback
             if (seqId) {
               channel.send({
                 type: 'broadcast',
@@ -76,13 +80,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               })
             }
           } else {
-            toast.error(`Product not found: ${code}`)
+            FeedbackService.triggerError()
+            toast.error(`Scanned product not found: ${code}`)
+            if (seqId) {
+              channel.send({
+                type: 'broadcast',
+                event: 'ack',
+                payload: { seqId, status: 'not_found', errorMessage: 'Product not found' }
+              })
+            }
           }
         } catch (err) {
-          console.error('[Global Scan Error]', err)
+          console.error('[Global Mobile Scan Error]', err)
         }
       })
-      .subscribe()
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ device: 'desktop', online_at: new Date().toISOString() })
+        }
+      })
 
     return () => {
       channel.unsubscribe()
