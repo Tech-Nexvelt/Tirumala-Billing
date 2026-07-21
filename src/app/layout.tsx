@@ -13,6 +13,11 @@ export const metadata: Metadata = {
   authors: [{ name: 'Thirumala Furniture' }],
   robots: { index: false, follow: false },
   manifest: '/manifest.json',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export const viewport: Viewport = {
