@@ -93,110 +93,62 @@ export class PairingService {
   }
 
   /**
-   * Mobile: Redeem Desktop Pairing QR Code and receive raw Pairing Token.
+   * Mobile: Redeem Desktop Pairing QR Code via secure server API (bypasses RLS).
+   * Calls /api/scanner/pair which uses service_role key server-side.
    */
   static async pairDeviceWithCode(pairingCode: string, deviceName = 'Mobile Scanner'): Promise<{ token: string; device: ScannerDevice }> {
-    const { data: session, error: sessErr } = await (this.supabase
-      .from('scanner_pairing_sessions' as any)
-      .select('*')
-      .eq('pairing_code', pairingCode)
-      .single() as any)
+    console.log(`[PairingService] Calling /api/scanner/pair with code: "${pairingCode}"`)
 
-    if (sessErr || !session) {
-      throw new Error('Invalid or expired pairing QR code')
+    const response = await fetch('/api/scanner/pair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pairingCode: pairingCode.trim(), deviceName }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Pairing failed. Please generate a new QR on Desktop.')
     }
 
-    if (session.is_used) {
-      throw new Error('This pairing QR code has already been used')
-    }
+    const { token: rawToken, device } = data
 
-    if (new Date(session.expires_at).getTime() < Date.now()) {
-      throw new Error('Pairing QR code expired. Please generate a new QR on Desktop')
-    }
-
-    if (session.attempts >= 5) {
-      throw new Error('Pairing session invalidated due to excessive attempts')
-    }
-
-    // Server-Side Token Generation Authority
-    const rawToken = this.generateSecureToken()
-    const tokenHash = await this.hashToken(rawToken)
-    const capabilities = DeviceStorageService.detectCapabilities()
-
-    // 1. Register device
-    const { data: device, error: devErr } = await (this.supabase
-      .from('scanner_devices' as any)
-      .insert({
-        store_id: session.store_id,
-        counter_id: session.counter_id,
-        device_name: deviceName,
-        pairing_token_hash: tokenHash,
-        platform: capabilities.platform,
-        browser: capabilities.browser,
-        os: capabilities.os,
-        app_version: '2.2.0',
-        status: 'active',
-        capabilities,
-        last_seen_at: new Date().toISOString(),
-      } as any)
-      .select('*')
-      .single() as any)
-
-    if (devErr) throw devErr
-
-    // 2. Log immutable pairing history
-    await (this.supabase
-      .from('scanner_pairing_history' as any)
-      .insert({
-        store_id: session.store_id,
-        device_id: device.id,
-        counter_id: session.counter_id,
-        paired_by: session.created_by,
-        paired_at: new Date().toISOString(),
-      } as any) as any)
-
-    // 3. Mark session as used
-    await (this.supabase
-      .from('scanner_pairing_sessions' as any)
-      .update({ is_used: true } as any)
-      .eq('id', session.id) as any)
-
-    // 4. Store token locally
+    // Store credentials in localStorage for persistent pairing
     DeviceStorageService.setPairingToken(rawToken)
     DeviceStorageService.setDeviceId(device.id)
-    DeviceStorageService.setStoreId(session.store_id)
-    DeviceStorageService.setCounterId(session.counter_id)
+    DeviceStorageService.setStoreId(device.store_id)
+    DeviceStorageService.setCounterId(device.counter_id)
     DeviceStorageService.setDeviceName(deviceName)
+
+    console.log(`[PairingService] Paired successfully. Device ID: ${device.id}, Store: ${device.store_id}`)
 
     return { token: rawToken, device: device as ScannerDevice }
   }
 
   /**
-   * Mobile: Validate stored token on PWA startup.
+   * Mobile: Validate stored token via secure server API (bypasses RLS).
+   * Calls /api/scanner/validate which uses service_role key server-side.
    */
   static async validateToken(rawToken: string): Promise<ScannerDevice | null> {
     if (!rawToken) return null
-    const tokenHash = await this.hashToken(rawToken)
 
-    const { data: devices, error } = await (this.supabase
-      .from('scanner_devices' as any)
-      .select('*')
-      .eq('pairing_token_hash', tokenHash)
-      .eq('status', 'active')
-      .limit(1) as any)
+    try {
+      const response = await fetch('/api/scanner/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: rawToken }),
+      })
 
-    if (error || !devices || devices.length === 0) {
+      if (!response.ok) return null
+
+      const data = await response.json()
+      if (!data.valid || !data.device) return null
+
+      return data.device as ScannerDevice
+    } catch (err) {
+      console.warn('[PairingService] validateToken network error:', err)
       return null
     }
-
-    const dev = devices[0] as ScannerDevice
-    ;(this.supabase
-      .from('scanner_devices' as any)
-      .update({ last_seen_at: new Date().toISOString() } as any)
-      .eq('id', dev.id) as any)
-      .then(() => {})
-
-    return dev
   }
 
   /**
