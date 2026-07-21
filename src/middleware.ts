@@ -49,7 +49,8 @@ export async function middleware(request: NextRequest) {
     '/forgot-password',
     '/reset-password',
     '/register',
-    '/manifest.json'
+    '/manifest.json',
+    '/scanner',
   ]
   const isPublicRoute = publicRoutes.some(r => pathname.startsWith(r))
 
