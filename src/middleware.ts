@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isPublicRoute && pathname !== '/register') {
+  if (user && isPublicRoute && pathname !== '/register' && !pathname.startsWith('/scanner')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
