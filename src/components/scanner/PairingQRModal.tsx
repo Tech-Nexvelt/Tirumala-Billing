@@ -22,7 +22,7 @@ export function PairingQRModal({ storeId, userId, onClose }: PairingQRModalProps
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname
-      const p = window.location.port || '3000'
+      const p = window.location.port
       setPort(p)
       if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
         setLocalIp(hostname)
@@ -75,8 +75,15 @@ export function PairingQRModal({ storeId, userId, onClose }: PairingQRModalProps
     return () => clearInterval(timer)
   }, [timeLeft, session])
 
-  // Local Network Web URL for phone access
-  const baseUrl = `http://${localIp}:${port}`
+  // Calculate Base URL for scanner pairing
+  const isCloudHost = typeof window !== 'undefined' && 
+    window.location.hostname !== 'localhost' && 
+    window.location.hostname !== '127.0.0.1'
+
+  const baseUrl = isCloudHost
+    ? (typeof window !== 'undefined' ? window.location.origin : '')
+    : `http://${localIp}${port ? `:${port}` : ':3000'}`
+
   const qrPayload = session
     ? `${baseUrl}/scanner?pair=${session.pairing_code}`
     : ''
@@ -180,7 +187,7 @@ export function PairingQRModal({ storeId, userId, onClose }: PairingQRModalProps
               <QRCodeSVG value={qrPayload} size={180} darkColor="#0F172A" />
             </div>
 
-            {/* Wi-Fi IP Configurator */}
+            {/* Wi-Fi / Cloud Configurator */}
             <div
               className="p-2.5 rounded-xl border text-left"
               style={{
@@ -189,13 +196,14 @@ export function PairingQRModal({ storeId, userId, onClose }: PairingQRModalProps
               }}
             >
               <label className="block text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
-                🌐 Store Wi-Fi Desktop IP Address:
+                {isCloudHost ? '☁️ Cloud Domain Access:' : '🌐 Store Wi-Fi Desktop IP Address:'}
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value={localIp}
-                  onChange={e => setLocalIp(e.target.value)}
+                  readOnly={isCloudHost}
+                  value={isCloudHost ? baseUrl : localIp}
+                  onChange={e => !isCloudHost && setLocalIp(e.target.value)}
                   className="flex-1 px-2.5 py-1 rounded text-xs font-mono outline-none border focus:border-cyan-500"
                   style={{
                     background: 'var(--surface)',
@@ -231,10 +239,10 @@ export function PairingQRModal({ storeId, userId, onClose }: PairingQRModalProps
             color: 'var(--text-muted)',
           }}
         >
-          <p className="font-bold" style={{ color: 'var(--text-primary)' }}>Wi-Fi Phone Pairing:</p>
-          <p>1. Connect your phone to the same Wi-Fi router.</p>
-          <p>2. Scan this QR code with your phone camera or open <span className="font-mono font-bold" style={{ color: 'var(--primary)' }}>{baseUrl}/scanner</span> in Chrome/Safari.</p>
-          <p>3. Tap the link to auto-pair forever!</p>
+          <p className="font-bold" style={{ color: 'var(--text-primary)' }}>Mobile Scanner Pairing:</p>
+          <p>1. {isCloudHost ? 'Open camera app on your phone.' : 'Connect your phone to the store Wi-Fi network.'}</p>
+          <p>2. Scan this QR code or open <span className="font-mono font-bold" style={{ color: 'var(--primary)' }}>{baseUrl}/scanner</span> on your phone.</p>
+          <p>3. Tap to pair phone as wireless scanner!</p>
         </div>
       </div>
     </div>
