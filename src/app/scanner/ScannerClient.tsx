@@ -55,7 +55,7 @@ export default function ProductScannerClient() {
     if (!storeId) return
 
     const channel = supabase.channel(`store_scans:${storeId}`, {
-      config: { broadcast: { self: false, ack: false } }
+      config: { broadcast: { self: true, ack: true } }
     })
 
     channel
@@ -67,9 +67,9 @@ export default function ProductScannerClient() {
         setIsDesktopOnline(desktopPresent)
       })
       .on('broadcast', { event: 'ack' }, (payload: any) => {
-        const { seqId } = payload.payload || {}
+        const { seqId, status } = payload.payload || {}
         setOutbox(prev =>
-          prev.map(item => item.seqId === seqId ? { ...item, status: 'synced' } : item)
+          prev.map(item => item.seqId === seqId ? { ...item, status: status === 'not_found' ? 'failed' : 'synced' } : item)
         )
       })
       .on('broadcast', { event: 'scanner_revoked' }, (payload: any) => {
@@ -355,20 +355,46 @@ export default function ProductScannerClient() {
       )}
 
       {/* LAST SCANNED ITEM CARD */}
-      {lastScannedSku && isPaired && (
-        <div className="mb-3 p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl flex items-center justify-between animate-slide-in-up">
-          <div>
-            <span className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider">LAST SCANNED QR</span>
-            <p className="text-base font-black text-white font-mono leading-tight">{lastScannedSku}</p>
+      {lastScannedSku && isPaired && (() => {
+        const lastItem = outbox[0]
+        const isSynced = lastItem?.status === 'synced'
+        const isFailed = lastItem?.status === 'failed'
+
+        return (
+          <div
+            className={`mb-3 p-3 rounded-xl flex items-center justify-between transition-all border ${
+              isSynced
+                ? 'bg-emerald-950/40 border-emerald-500/40'
+                : isFailed
+                ? 'bg-rose-950/40 border-rose-500/40'
+                : 'bg-amber-950/40 border-amber-500/40'
+            }`}
+          >
+            <div>
+              <span className={`text-[9px] uppercase font-bold tracking-wider ${
+                isSynced ? 'text-emerald-400' : isFailed ? 'text-rose-400' : 'text-amber-400'
+              }`}>
+                LAST SCANNED QR
+              </span>
+              <p className="text-base font-black text-white font-mono leading-tight">{lastScannedSku}</p>
+            </div>
+            <div className="text-right">
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                  isSynced
+                    ? 'text-emerald-300 bg-emerald-900/60'
+                    : isFailed
+                    ? 'text-rose-300 bg-rose-900/60'
+                    : 'text-amber-300 bg-amber-900/60 animate-pulse'
+                }`}
+              >
+                {isSynced ? 'Added to Bill ✓' : isFailed ? 'Not Found ❌' : 'Transmitting ⚡'}
+              </span>
+              <p className="text-[9px] text-slate-400 mt-0.5">{lastScanTime}</p>
+            </div>
           </div>
-          <div className="text-right">
-            <span className="text-[10px] text-emerald-300 font-bold bg-emerald-900/60 px-2 py-0.5 rounded">
-              Added to Bill ✓
-            </span>
-            <p className="text-[9px] text-slate-400 mt-0.5">{lastScanTime}</p>
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* QUEUE & AUDIT MONITOR */}
       {isPaired && (

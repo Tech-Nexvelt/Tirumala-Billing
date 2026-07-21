@@ -24,8 +24,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!store?.id) return
 
-    const channel = supabase.channel(`store_scans:${store.id}`, {
-      config: { broadcast: { self: false, ack: false } }
+    const storeId = store.id
+    const channel = supabase.channel(`store_scans:${storeId}`, {
+      config: { broadcast: { self: true, ack: true } }
     })
 
     channel
@@ -34,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const code = sku || barcode
         if (!code) return
 
-        console.log('[Global Mobile Scan] Code received:', code)
+        console.log('[Global Mobile Scan] Code received:', code, 'seqId:', seqId)
 
         try {
           const cleanCode = code.trim().toUpperCase()
@@ -52,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           const product = products?.[0]
           if (product) {
-            // Add product to bill cart
+            // Add product to bill cart immediately
             addItem({
               product_id: product.id,
               product_name: product.name,
@@ -71,9 +72,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               router.push('/billing/new')
             }
 
-            // Send ACK back to phone for green tick feedback
+            // Send ACK back to phone for green tick confirmation
             if (seqId) {
-              channel.send({
+              await channel.send({
                 type: 'broadcast',
                 event: 'ack',
                 payload: { seqId, status: 'success', productName: product.name, sku: product.sku }
@@ -83,7 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             FeedbackService.triggerError()
             toast.error(`Scanned product not found: ${code}`)
             if (seqId) {
-              channel.send({
+              await channel.send({
                 type: 'broadcast',
                 event: 'ack',
                 payload: { seqId, status: 'not_found', errorMessage: 'Product not found' }
