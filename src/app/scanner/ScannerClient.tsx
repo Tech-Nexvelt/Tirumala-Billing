@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CameraService } from '@/services/cameraService'
 import { CodeScannerService } from '@/services/codeScannerService'
@@ -8,7 +8,7 @@ import { FeedbackService } from '@/services/feedbackService'
 import { PairingService } from '@/services/pairingService'
 import { useAutoReconnect } from '@/hooks/useAutoReconnect'
 import type { ScannerState } from '@/types/scanner'
-import { toast, Toaster } from 'sonner'
+import { toast } from 'sonner'
 
 const cameraService = new CameraService()
 const codeScannerService = new CodeScannerService()
@@ -19,6 +19,7 @@ interface OutboxItem {
   sku: string
   timestamp: number
   status: 'sending' | 'synced' | 'failed'
+  attempts: number
 }
 
 export default function ProductScannerClient() {
@@ -54,6 +55,8 @@ export default function ProductScannerClient() {
   useEffect(() => {
     if (!storeId) return
 
+    console.log(`[Phone Scanner] Subscribing to store_scans:${storeId}`)
+
     const channel = supabase.channel(`store_scans:${storeId}`, {
       config: { broadcast: { self: true, ack: true } }
     })
@@ -67,9 +70,25 @@ export default function ProductScannerClient() {
         setIsDesktopOnline(desktopPresent)
       })
       .on('broadcast', { event: 'ack' }, (payload: any) => {
-        const { seqId, status } = payload.payload || {}
+        const { seqId, event_id, status } = payload?.payload || {}
+        const targetId = seqId || event_id
+        if (!targetId) return
+
+        console.log(`[Phone Scanner] ACK Received for seqId: "${targetId}", status: "${status}"`)
+
         setOutbox(prev =>
-          prev.map(item => item.seqId === seqId ? { ...item, status: status === 'not_found' ? 'failed' : 'synced' } : item)
+          prev.map(item => {
+            if (item.seqId === targetId) {
+              const newStatus = status === 'not_found' ? 'failed' : 'synced'
+              if (newStatus === 'synced' && item.status !== 'synced') {
+                if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                  navigator.vibrate?.([50, 50, 50])
+                }
+              }
+              return { ...item, status: newStatus }
+            }
+            return item
+          })
         )
       })
       .on('broadcast', { event: 'scanner_revoked' }, (payload: any) => {
@@ -79,17 +98,24 @@ export default function ProductScannerClient() {
         }
       })
       .subscribe(async (status) => {
+        console.log(`[Phone Scanner Channel Status] store_scans:${storeId} -> ${status}`)
         if (status === 'SUBSCRIBED') {
-          await channel.track({ device: 'phone', deviceId: device?.id, online_at: new Date().toISOString() })
+          await channel.track({
+            device: 'phone',
+            deviceId: device?.id,
+            online_at: new Date().toISOString(),
+          })
           setScannerState('READY')
         }
       })
 
     channelRef.current = channel
-    return () => { channel.unsubscribe() }
-  }, [storeId, device?.id, resetPairing])
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [storeId, device?.id, resetPairing, supabase])
 
-  // Camera & Code Scanning Loop (Runs immediately on load)
+  // Camera & Code Scanning Loop
   useEffect(() => {
     if (!videoRef.current || autoState === 'INITIALIZING' || autoState === 'VALIDATING') return
     let active = true
@@ -139,6 +165,58 @@ export default function ProductScannerClient() {
     }
   }, [autoState, facingMode])
 
+  // Broadcast helper to transmit scan payload to Desktop POS
+  const transmitScanPayload = useCallback(async (item: OutboxItem) => {
+    if (!channelRef.current || !storeId) return
+
+    const payload = {
+      event_id: item.seqId,
+      seqId: item.seqId,
+      store_id: storeId,
+      counter_id: device?.counter_id || null,
+      scanner_id: device?.id || null,
+      product_code: item.sku,
+      barcode: item.sku,
+      sku: item.sku,
+      timestamp: item.timestamp,
+    }
+
+    try {
+      console.log(`[Phone Scanner Transmit] Sending payload for SKU: "${item.sku}" (seqId: ${item.seqId})`)
+      const res = await channelRef.current.send({
+        type: 'broadcast',
+        event: 'new_scan',
+        payload,
+      })
+      console.log(`[Phone Scanner Transmit] Broadcast send result:`, res)
+    } catch (err) {
+      console.error(`[Phone Scanner Transmit Error] Failed to broadcast:`, err)
+    }
+  }, [storeId, device?.counter_id, device?.id])
+
+  // Auto-Retry Engine for Outbox items pending ACK
+  useEffect(() => {
+    if (!isPaired) return
+
+    const timer = setInterval(() => {
+      setOutbox(prev => {
+        const pending = prev.filter(i => i.status === 'sending' && i.attempts < 10)
+        pending.forEach(item => {
+          console.log(`[Phone Outbox Retry] Re-transmitting seqId: "${item.seqId}" (Attempt #${item.attempts + 1})`)
+          transmitScanPayload(item)
+        })
+        if (pending.length === 0) return prev
+        return prev.map(item =>
+          item.status === 'sending' && item.attempts < 10
+            ? { ...item, attempts: item.attempts + 1 }
+            : item
+        )
+      })
+    }, 1500)
+
+    return () => clearInterval(timer)
+  }, [isPaired, transmitScanPayload])
+
   // Smart Auto-Detector for Desktop Pairing QR vs Product Code QR
   const handleAnyCodeScanned = (rawCode: string) => {
     const isPairingQR =
@@ -187,7 +265,6 @@ export default function ProductScannerClient() {
       toast.dismiss()
       toast.success(`Paired successfully with ${pairedDev.device_name}!`)
 
-      // Clean URL query parameter
       if (typeof window !== 'undefined') {
         window.history.replaceState({}, document.title, window.location.pathname)
       }
@@ -211,7 +288,6 @@ export default function ProductScannerClient() {
     setScannerState('PROCESSING')
     FeedbackService.triggerSuccess()
 
-    // Flash trigger
     setScanFlash(true)
     setTimeout(() => setScanFlash(false), 250)
 
@@ -222,20 +298,20 @@ export default function ProductScannerClient() {
     setLastScannedSku(sku)
     setLastScanTime(formattedTime)
 
-    const scanEvent: OutboxItem = { seqId, sku, timestamp: now, status: 'sending' }
-    setOutbox(prev => [scanEvent, ...prev].slice(0, 20))
-
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'new_scan',
-        payload: { seqId, barcode: sku, sku, timestamp: now }
-      })
+    const scanEvent: OutboxItem = {
+      seqId,
+      sku,
+      timestamp: now,
+      status: 'sending',
+      attempts: 1,
     }
+
+    setOutbox(prev => [scanEvent, ...prev].slice(0, 20))
+    transmitScanPayload(scanEvent)
 
     setTimeout(() => {
       setScannerState('READY')
-    }, 400)
+    }, 300)
   }
 
   const handleToggleTorch = async () => {
@@ -249,93 +325,91 @@ export default function ProductScannerClient() {
     if (!videoRef.current) return
     const nextFacing = await cameraService.switchCamera(videoRef.current)
     setFacingMode(nextFacing)
-  }
-
-  if (autoState === 'INITIALIZING' || autoState === 'VALIDATING') {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 font-sans">
-        <svg className="animate-spin w-8 h-8 text-cyan-400 mb-2" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
-        </svg>
-        <span>Validating Scanner Session...</span>
-      </div>
-    )
+    setTorchActive(false)
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col p-4 font-sans select-none relative overflow-hidden">
-      <Toaster position="top-center" theme="dark" richColors />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none pb-8">
+      <Toaster position="top-center" richColors />
 
-      {/* FLASH OVERLAY ON SCAN */}
-      {scanFlash && (
-        <div className="absolute inset-0 z-50 bg-cyan-400/20 pointer-events-none animate-fade-in" />
-      )}
-
-      {/* HEADER BAR */}
-      <div className="flex justify-between items-center pb-3 border-b border-slate-800 mb-3">
-        <div>
-          <h1 className="font-bold text-base tracking-tight flex items-center gap-2">
-            {!isPaired ? '📱 Pair Scanner with Desktop' : '📷 Commercial QR Scanner'}
+      {/* TOP HEADER STATUS */}
+      <header className="p-3 bg-slate-900/90 backdrop-blur border-b border-slate-800 flex justify-between items-center sticky top-0 z-30">
+        <div className="flex items-center gap-2">
+          <div className={`w-2.5 h-2.5 rounded-full ${isPaired ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+          <h1 className="text-xs font-bold tracking-tight">
+            {isPaired ? `📱 ${device?.device_name || 'Mobile Scanner'}` : 'Pair Mobile Scanner'}
           </h1>
-          <p className="text-[10px] text-slate-400 font-mono">
-            {!isPaired ? 'Scan Desktop QR code to connect' : device?.device_name || 'Tirumala Wireless POS'}
-          </p>
         </div>
 
-        {/* STATE & DESKTOP LINK STATUS */}
-        <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800">
-          <span className={`w-2.5 h-2.5 rounded-full ${isPaired && isDesktopOnline ? 'bg-emerald-400 animate-pulse' : isPaired ? 'bg-amber-400' : 'bg-rose-500 animate-pulse'}`} />
-          <span className="text-xs font-semibold text-slate-300">
-            {!isPaired ? 'Unpaired' : isDesktopOnline ? 'POS Linked' : 'Standby'}
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full border ${
+              isPaired
+                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+                : 'bg-rose-950/80 text-rose-300 border-rose-500/40'
+            }`}
+          >
+            {isPaired ? '● Connected' : 'Unpaired'}
           </span>
         </div>
-      </div>
+      </header>
 
-      {/* CAMERA VIEWPORT WITH SPOTLIGHT FRAME */}
-      <div className="flex-1 flex flex-col items-center justify-center my-2">
-        <div className="w-full max-w-md relative aspect-square bg-slate-900 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl">
+      {/* VIEWFINDER CAMERA */}
+      <div className="p-3 flex-1 flex flex-col items-center justify-center">
+        <div
+          className={`relative w-full max-w-sm aspect-square rounded-3xl overflow-hidden border-2 shadow-2xl transition-all duration-150 ${
+            scanFlash
+              ? 'border-cyan-400 shadow-cyan-500/50 scale-[1.02]'
+              : isPaired
+              ? 'border-cyan-500/40 shadow-slate-900/80'
+              : 'border-amber-500/60 shadow-amber-950/50'
+          }`}
+          style={{ background: '#000' }}
+        >
           <video
             ref={videoRef}
-            id="scanner-video"
-            autoPlay
             playsInline
             muted
             className="w-full h-full object-cover"
           />
 
-          {/* TARGET OVERLAY & CORNER BRACKETS */}
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-8">
-            <div className={`w-64 h-64 border-2 ${!isPaired ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.3)]' : 'border-cyan-400/50 shadow-[0_0_30px_rgba(0,217,217,0.2)]'} rounded-2xl relative flex items-center justify-center`}>
-              <div className={`absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 ${!isPaired ? 'border-amber-400' : 'border-cyan-400'} rounded-tl-lg`} />
-              <div className={`absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 ${!isPaired ? 'border-amber-400' : 'border-cyan-400'} rounded-tr-lg`} />
-              <div className={`absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 ${!isPaired ? 'border-amber-400' : 'border-cyan-400'} rounded-bl-lg`} />
-              <div className={`absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 ${!isPaired ? 'border-amber-400' : 'border-cyan-400'} rounded-br-lg`} />
+          {/* Viewfinder Target Framing */}
+          <div className="absolute inset-0 border-[32px] border-slate-950/60 pointer-events-none flex items-center justify-center">
+            <div className="w-48 h-48 border-2 border-cyan-400/80 rounded-2xl relative shadow-inner">
+              <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-cyan-400 -mt-1 -ml-1 rounded-tl" />
+              <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-cyan-400 -mt-1 -mr-1 rounded-tr" />
+              <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-cyan-400 -mb-1 -ml-1 rounded-bl" />
+              <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-cyan-400 -mb-1 -mr-1 rounded-br" />
 
-              {/* Laser Line */}
-              <div className={`absolute left-3 right-3 h-0.5 ${!isPaired ? 'bg-amber-400 shadow-[0_0_12px_2px_rgba(251,191,36,0.8)]' : 'bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_2px_rgba(53,245,255,0.8)]'} animate-pulse`} />
-
-              <span className={`text-[10px] font-mono uppercase tracking-widest font-bold px-3 py-1 rounded-full border ${!isPaired ? 'bg-amber-950/80 text-amber-300 border-amber-500/50' : 'bg-slate-950/60 text-cyan-300/80 border-cyan-500/30'}`}>
-                {!isPaired ? 'Scan Desktop Pairing QR' : 'Point at Product QR'}
-              </span>
+              {/* Scanning laser animation */}
+              {scannerState === 'SCANNING' && (
+                <div className="w-full h-0.5 bg-cyan-400 shadow-[0_0_12px_#00D9D9] animate-scan-laser absolute top-1/2" />
+              )}
             </div>
           </div>
 
-          {/* FLOATING CAMERA CONTROLS */}
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-auto">
+          {/* Status Label Banner */}
+          <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest px-3 py-1 bg-slate-950/80 border border-slate-700/80 rounded-full text-cyan-300 backdrop-blur">
+              {!isPaired ? 'SCAN DESKTOP PAIRING QR' : scannerState === 'PROCESSING' ? 'Processing...' : 'POINT AT PRODUCT QR'}
+            </span>
+          </div>
+
+          {/* Controls Bar */}
+          <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center gap-2">
             <button
               onClick={handleSwitchCamera}
-              className="px-3.5 py-1.5 bg-slate-900/80 backdrop-blur-md border border-slate-700/80 rounded-full text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-xs font-semibold rounded-xl border border-slate-700 text-slate-200 backdrop-blur active:scale-95 transition-transform"
             >
               🔄 Flip Camera
             </button>
 
             <button
               onClick={handleToggleTorch}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md border transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl border backdrop-blur active:scale-95 transition-transform ${
                 torchActive
                   ? 'bg-amber-400 text-slate-950 border-amber-300 font-bold'
-                  : 'bg-slate-900/80 border-slate-700/80 text-slate-200 hover:bg-slate-800'
+                  : 'bg-slate-900/80 hover:bg-slate-800 text-slate-200 border-slate-700'
               }`}
             >
               {torchActive ? '💡 Flash On' : '🔦 Flash Off'}
@@ -346,7 +420,7 @@ export default function ProductScannerClient() {
 
       {/* UNPAIRED BANNER */}
       {!isPaired && (
-        <div className="mb-3 p-3 bg-amber-950/60 border border-amber-500/40 rounded-2xl text-center space-y-1">
+        <div className="mx-3 mb-3 p-3 bg-amber-950/60 border border-amber-500/40 rounded-2xl text-center space-y-1">
           <p className="text-xs font-bold text-amber-300">⚡ Scanner Unpaired</p>
           <p className="text-[10.5px] text-amber-200/80">
             Scan the Desktop Pairing QR with your phone camera or point this scanner at it!
@@ -362,7 +436,7 @@ export default function ProductScannerClient() {
 
         return (
           <div
-            className={`mb-3 p-3 rounded-xl flex items-center justify-between transition-all border ${
+            className={`mx-3 mb-3 p-3 rounded-xl flex items-center justify-between transition-all border ${
               isSynced
                 ? 'bg-emerald-950/40 border-emerald-500/40'
                 : isFailed
@@ -388,7 +462,7 @@ export default function ProductScannerClient() {
                     : 'text-amber-300 bg-amber-900/60 animate-pulse'
                 }`}
               >
-                {isSynced ? 'Added to Bill ✓' : isFailed ? 'Not Found ❌' : 'Transmitting ⚡'}
+                {isSynced ? 'Added to Bill ✓' : isFailed ? 'Not Found ❌' : 'Transmitting to POS ⚡'}
               </span>
               <p className="text-[9px] text-slate-400 mt-0.5">{lastScanTime}</p>
             </div>
@@ -398,7 +472,7 @@ export default function ProductScannerClient() {
 
       {/* QUEUE & AUDIT MONITOR */}
       {isPaired && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-xs">
+        <div className="mx-3 bg-slate-900 border border-slate-800 rounded-2xl p-3 text-xs">
           <div className="flex justify-between items-center mb-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">POS REALTIME QUEUE</span>
             <button
@@ -414,15 +488,25 @@ export default function ProductScannerClient() {
           </div>
 
           {outbox.length === 0 ? (
-            <p className="text-[11px] text-slate-500 italic">Ready for next furniture label scan...</p>
+            <p className="text-[11px] text-slate-500 italic py-1">No items scanned in current session.</p>
           ) : (
-            <div className="space-y-1 max-h-16 overflow-y-auto font-mono text-[10px]">
+            <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
               {outbox.map(item => (
-                <div key={item.seqId} className="flex justify-between items-center border-b border-slate-800/60 py-0.5">
-                  <span className="font-bold text-cyan-300">{item.sku}</span>
-                  <span className={item.status === 'synced' ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
-                    {item.status === 'synced' ? '✓ Synced to Cart' : '⚡ Transmitting...'}
-                  </span>
+                <div key={item.seqId} className="flex justify-between items-center text-[11px] font-mono py-1 border-b border-slate-800/60 last:border-0">
+                  <span className="text-slate-200 font-bold">{item.sku}</span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-[9.5px] px-1.5 py-0.5 rounded ${
+                        item.status === 'synced'
+                          ? 'text-emerald-400 bg-emerald-950/60'
+                          : item.status === 'failed'
+                          ? 'text-rose-400 bg-rose-950/60'
+                          : 'text-amber-400 bg-amber-950/60 animate-pulse'
+                      }`}
+                    >
+                      {item.status === 'synced' ? 'Synced ✓' : item.status === 'failed' ? 'Failed ❌' : 'Transmitting...'}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

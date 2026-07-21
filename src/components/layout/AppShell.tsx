@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useBillingStore } from '@/store/billingStore'
+import { useProductCacheStore } from '@/store/productCacheStore'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { FeedbackService } from '@/services/feedbackService'
@@ -16,49 +17,76 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   
   const router = useRouter()
   const pathname = usePathname()
-  const { store } = useAuth()
+  const { store, profile } = useAuth()
   const { addItem } = useBillingStore()
+  const { products, fetchProducts, syncProduct } = useProductCacheStore()
   const supabase = createClient()
 
-  // Unified Global Mobile Scanner Listener
-  useEffect(() => {
-    if (!store?.id) return
+  const storeId = store?.id || profile?.store_id
 
-    const storeId = store.id
+  // ── Prefetch Product Cache ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (storeId) {
+      fetchProducts(storeId)
+    }
+  }, [storeId, fetchProducts])
+
+  // ── Unified Commercial POS Global Mobile Scanner Listener ───────────────────
+  useEffect(() => {
+    if (!storeId) return
+
+    console.log(`[POS Realtime] Subscribing desktop to store_scans:${storeId}`)
+
     const channel = supabase.channel(`store_scans:${storeId}`, {
       config: { broadcast: { self: true, ack: true } }
     })
 
     channel
       .on('broadcast', { event: 'new_scan' }, async (payload: any) => {
-        const { barcode, sku, seqId } = payload.payload || {}
-        const code = sku || barcode
+        const pData = payload?.payload || {}
+        const code = pData.product_code || pData.barcode || pData.sku
+        const seqId = pData.event_id || pData.seqId
+
         if (!code) return
 
-        console.log('[Global Mobile Scan] Code received:', code, 'seqId:', seqId)
+        console.log(`[POS Realtime Event] Received scan code: "${code}", Event ID: "${seqId}"`)
 
         try {
           const cleanCode = code.trim().toUpperCase()
 
-          // Fast DB Query by SKU, Barcode, or ID
-          const { data: products, error } = await supabase
-            .from('products')
-            .select('*, categories(name)')
-            .or(`sku.ilike.${cleanCode},barcode.ilike.${cleanCode},id.eq.${cleanCode}`)
-            .eq('status', 'active')
-            .is('deleted_at', null)
-            .limit(1)
+          // 1. Fast Memory Cache Lookup (<2ms)
+          let product = products.find(p =>
+            p.sku?.toUpperCase() === cleanCode ||
+            (p.barcode && p.barcode.toUpperCase() === cleanCode) ||
+            p.id === cleanCode
+          )
 
-          if (error) throw error
+          // 2. DB Query Fallback if not in memory cache
+          if (!product) {
+            console.log(`[POS Realtime] Cache miss for "${cleanCode}", querying Supabase DB...`)
+            const { data: dbProducts, error } = await supabase
+              .from('products')
+              .select('*, categories(name)')
+              .or(`sku.ilike.${cleanCode},barcode.ilike.${cleanCode},id.eq.${cleanCode}`)
+              .eq('status', 'active')
+              .is('deleted_at', null)
+              .limit(1)
 
-          const product = products?.[0]
+            if (!error && dbProducts && dbProducts.length > 0) {
+              product = dbProducts[0]
+              syncProduct(dbProducts[0])
+            }
+          }
+
           if (product) {
-            // Add product to bill cart immediately
+            console.log(`[POS Realtime Success] Adding "${product.name}" to cart`)
+
+            // Add product to bill cart (automatically increments qty if already present)
             addItem({
               product_id: product.id,
               product_name: product.name,
               product_sku: product.sku,
-              product_barcode: product.barcode,
+              product_barcode: product.barcode || null,
               quantity: 1,
               unit_price: product.selling_price,
               discount_percent: 0,
@@ -67,44 +95,59 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             FeedbackService.triggerSuccess()
             toast.success(`Scanned: ${product.name} — Added to Bill`, { duration: 3000 })
 
-            // Auto-navigate to New Bill page if on any other page
+            // Auto-navigate to New Bill page if cashier is currently on another screen
             if (pathname !== '/billing/new') {
               router.push('/billing/new')
             }
 
-            // Send ACK back to phone for green tick confirmation
+            // Send ACK broadcast back to mobile phone to mark outbox item as 'synced'
             if (seqId) {
               await channel.send({
                 type: 'broadcast',
                 event: 'ack',
-                payload: { seqId, status: 'success', productName: product.name, sku: product.sku }
+                payload: {
+                  seqId,
+                  event_id: seqId,
+                  status: 'success',
+                  productName: product.name,
+                  sku: product.sku,
+                }
               })
             }
           } else {
+            console.warn(`[POS Realtime Warning] Product not found for code: "${code}"`)
             FeedbackService.triggerError()
             toast.error(`Scanned product not found: ${code}`)
+
             if (seqId) {
               await channel.send({
                 type: 'broadcast',
                 event: 'ack',
-                payload: { seqId, status: 'not_found', errorMessage: 'Product not found' }
+                payload: {
+                  seqId,
+                  event_id: seqId,
+                  status: 'not_found',
+                  errorMessage: `Product not found: ${code}`,
+                }
               })
             }
           }
         } catch (err) {
-          console.error('[Global Mobile Scan Error]', err)
+          console.error('[POS Realtime Error] Exception handling scan payload:', err)
         }
       })
       .subscribe(async (status) => {
+        console.log(`[POS Realtime Channel Status] store_scans:${storeId} -> ${status}`)
         if (status === 'SUBSCRIBED') {
           await channel.track({ device: 'desktop', online_at: new Date().toISOString() })
         }
       })
 
     return () => {
+      console.log(`[POS Realtime] Unsubscribing desktop from store_scans:${storeId}`)
       channel.unsubscribe()
     }
-  }, [store?.id, pathname, router, addItem, supabase])
+  }, [storeId, pathname, router, addItem, supabase, products, syncProduct])
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
