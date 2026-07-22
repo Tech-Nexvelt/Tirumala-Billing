@@ -82,10 +82,22 @@ export default function ForgotPasswordPage() {
         >
           {isLoading ? 'Sending...' : 'Send Reset Link'}
         </button>
-        <div className="text-center pt-2">
-          <Link href="/login" className="text-xs font-semibold text-[#6B7280] hover:text-[#111827] hover:underline">
-            ← Back to Login
-          </Link>
+        <div className="text-center pt-3 space-y-2 border-t border-[#E5E7EB] mt-4">
+          <p className="text-[11px] text-[#6B7280] leading-tight">
+            By continuing you agree to our{' '}
+            <Link href="/terms" target="_blank" className="font-bold text-[#00B8B8] hover:underline">
+              Terms &amp; Conditions
+            </Link>{' '}
+            and{' '}
+            <Link href="/privacy" target="_blank" className="font-bold text-[#00B8B8] hover:underline">
+              Privacy Policy
+            </Link>.
+          </p>
+          <div>
+            <Link href="/login" className="text-xs font-semibold text-[#6B7280] hover:text-[#111827] hover:underline">
+              ← Back to Login
+            </Link>
+          </div>
         </div>
       </form>
     </div>

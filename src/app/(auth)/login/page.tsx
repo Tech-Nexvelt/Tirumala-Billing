@@ -13,12 +13,17 @@ function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
+  const [agreeTerms, setAgreeTerms] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     if (!email || !password) return
+    if (!agreeTerms) {
+      toast.error('You must agree to the Terms & Conditions and Privacy Policy.')
+      return
+    }
 
     setIsLoading(true)
     try {
@@ -176,17 +181,38 @@ function LoginForm() {
           </label>
         </div>
 
+        {/* Terms Agreement Checkbox */}
+        <div className="flex items-start gap-2 pt-1">
+          <input
+            id="login-agree-terms"
+            type="checkbox"
+            checked={agreeTerms}
+            onChange={e => setAgreeTerms(e.target.checked)}
+            className="w-4 h-4 mt-0.5 rounded border-[#E5E7EB] text-[#00D9D9] focus:ring-[#00D9D9] cursor-pointer"
+          />
+          <label htmlFor="login-agree-terms" className="text-xs text-[#6B7280] leading-tight cursor-pointer">
+            I have read and agree to the{' '}
+            <Link href="/terms" target="_blank" className="font-bold text-[#00B8B8] hover:underline">
+              Terms &amp; Conditions
+            </Link>{' '}
+            and{' '}
+            <Link href="/privacy" target="_blank" className="font-bold text-[#00B8B8] hover:underline">
+              Privacy Policy
+            </Link>.
+          </label>
+        </div>
+
         {/* Action Button */}
         <button
           type="submit"
-          disabled={isLoading || !email || !password}
+          disabled={isLoading || !email || !password || !agreeTerms}
           className="w-full h-11 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 mt-2 shadow-xs"
           style={{
-            background: isLoading || !email || !password
+            background: isLoading || !email || !password || !agreeTerms
               ? '#F1F5F9'
               : 'linear-gradient(135deg, #00D9D9 0%, #00B8B8 100%)',
-            color: isLoading || !email || !password ? '#94A3B8' : '#FFFFFF',
-            cursor: isLoading || !email || !password ? 'not-allowed' : 'pointer',
+            color: isLoading || !email || !password || !agreeTerms ? '#94A3B8' : '#FFFFFF',
+            cursor: isLoading || !email || !password || !agreeTerms ? 'not-allowed' : 'pointer',
           }}
         >
           {isLoading ? (

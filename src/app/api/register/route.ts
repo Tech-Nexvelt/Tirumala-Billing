@@ -4,10 +4,27 @@ import { createClient } from '@supabase/supabase-js'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { email, password, full_name, store_name, phone, city, state, address } = body
+    const {
+      email,
+      password,
+      full_name,
+      store_name,
+      phone,
+      city,
+      state,
+      address,
+      accepted_terms,
+      accepted_privacy,
+      terms_version = 'v2.4.0',
+      privacy_version = 'v2.4.0',
+    } = body
 
     if (!email || !password || !full_name || !store_name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    if (!accepted_terms || !accepted_privacy) {
+      return NextResponse.json({ error: 'You must agree to the Terms & Conditions and Privacy Policy to register.' }, { status: 400 })
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -25,7 +42,11 @@ export async function POST(request: Request) {
       },
     })
 
-    console.log('API Register: Signing up auth user...', email)
+    const ip_address = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '127.0.0.1'
+    const user_agent = request.headers.get('user-agent') || 'Unknown'
+    const accepted_at = new Date().toISOString()
+
+    console.log('API Register: Signing up auth user with legal consent...', email)
     const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -33,6 +54,13 @@ export async function POST(request: Request) {
       user_metadata: {
         full_name,
         role: 'admin',
+        accepted_terms: true,
+        accepted_privacy: true,
+        terms_version,
+        privacy_version,
+        accepted_at,
+        ip_address,
+        user_agent,
       },
     })
 
@@ -79,6 +107,31 @@ export async function POST(request: Request) {
       await supabaseAdmin.from('stores').delete().eq('id', storeData.id)
       await supabaseAdmin.auth.admin.deleteUser(userId)
       return NextResponse.json({ error: profileErr.message }, { status: 500 })
+    }
+
+    // Insert legal consent audit log for legal compliance & auditing
+    try {
+      await supabaseAdmin.from('audit_log').insert({
+        store_id: storeData.id,
+        table_name: 'legal_consent',
+        record_id: userId,
+        action: 'INSERT',
+        new_data: {
+          user_id: userId,
+          accepted_terms: true,
+          accepted_privacy: true,
+          terms_version,
+          privacy_version,
+          accepted_at,
+          ip_address,
+          user_agent,
+        },
+        user_id: userId,
+        ip_address,
+        user_agent,
+      })
+    } catch (auditErr) {
+      console.warn('API Register: Non-blocking audit log warning:', auditErr)
     }
 
     return NextResponse.json({

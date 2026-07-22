@@ -11,12 +11,19 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
 
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+
   const [store, setStore] = useState({ name: '', address: '', phone: '', city: '', state: '' })
   const [user, setUser] = useState({ full_name: '', email: '', password: '', confirm_password: '' })
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     
+    if (!acceptedTerms) {
+      toast.error('You must agree to the Terms & Conditions and Privacy Policy.')
+      return
+    }
+
     if (!user.full_name.trim()) {
       toast.error('Please enter your full name')
       return
@@ -54,6 +61,10 @@ export default function RegisterPage() {
           city: store.city,
           state: store.state,
           address: store.address,
+          accepted_terms: true,
+          accepted_privacy: true,
+          terms_version: 'v2.4.0',
+          privacy_version: 'v2.4.0',
         }),
       })
 
@@ -283,6 +294,35 @@ export default function RegisterPage() {
               )}
             </div>
 
+            {/* Mandatory Terms & Privacy Checkbox */}
+            <div className="space-y-1 pt-1">
+              <div className="flex items-start gap-2">
+                <input
+                  id="register-agree-terms"
+                  type="checkbox"
+                  required
+                  checked={acceptedTerms}
+                  onChange={e => setAcceptedTerms(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-[#E5E7EB] text-[#00D9D9] focus:ring-[#00D9D9] cursor-pointer"
+                />
+                <label htmlFor="register-agree-terms" className="text-xs text-[#6B7280] leading-tight cursor-pointer">
+                  I agree to the{' '}
+                  <Link href="/terms" target="_blank" className="font-bold text-[#00B8B8] hover:underline">
+                    Terms &amp; Conditions
+                  </Link>{' '}
+                  and{' '}
+                  <Link href="/privacy" target="_blank" className="font-bold text-[#00B8B8] hover:underline">
+                    Privacy Policy
+                  </Link>.
+                </label>
+              </div>
+              {!acceptedTerms && (
+                <p className="text-[11px] text-[#EF4444] font-medium pl-6">
+                  You must agree to the Terms &amp; Conditions and Privacy Policy to register.
+                </p>
+              )}
+            </div>
+
             <div className="flex gap-3 mt-2">
               <button
                 type="button" onClick={() => setStep(1)}
@@ -292,12 +332,12 @@ export default function RegisterPage() {
               </button>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !acceptedTerms}
                 className="flex-1 h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-xs"
                 style={{
-                  background: isLoading ? '#F1F5F9' : 'linear-gradient(135deg, #00D9D9 0%, #00B8B8 100%)',
-                  color: isLoading ? '#94A3B8' : '#FFFFFF',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  background: isLoading || !acceptedTerms ? '#F1F5F9' : 'linear-gradient(135deg, #00D9D9 0%, #00B8B8 100%)',
+                  color: isLoading || !acceptedTerms ? '#94A3B8' : '#FFFFFF',
+                  cursor: isLoading || !acceptedTerms ? 'not-allowed' : 'pointer',
                 }}
               >
                 {isLoading ? (
