@@ -14,7 +14,12 @@ export function ThermalReceipt({ invoice, items, store }: ThermalReceiptProps) {
   return (
     <div className="print-thermal p-4 bg-white text-black font-mono text-xs w-[80mm] border border-dashed border-slate-300 rounded-lg shadow-sm mx-auto select-text">
       {/* Store Info */}
-      <div className="text-center space-y-1 mb-3">
+      <div className="text-center space-y-1 mb-3 flex flex-col items-center">
+        <img
+          src={store?.logo_url || '/thirumala-logo.png'}
+          alt="Thirumala Furniture Logo"
+          className="h-12 w-auto object-contain mx-auto mb-1.5"
+        />
         <h2 className="text-sm font-bold uppercase tracking-wide">{store?.name ?? 'Thirumala Furniture'}</h2>
         {store?.legal_name && <p className="text-[10px] leading-tight opacity-75">{store.legal_name}</p>}
         {store?.address && <p className="text-[10px] leading-tight">{store.address}</p>}

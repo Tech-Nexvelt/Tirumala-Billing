@@ -15,14 +15,21 @@ export function A4Invoice({ invoice, items, store }: A4InvoiceProps) {
     <div className="print-a4 p-6 bg-white text-slate-800 font-sans border border-slate-200 rounded-2xl shadow-md max-w-[210mm] w-full mx-auto">
       {/* Header Banner */}
       <div className="flex justify-between items-start border-b border-slate-200 pb-4 mb-4">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">{store?.name ?? 'Thirumala Furniture'}</h2>
-          {store?.legal_name && <p className="text-xs font-semibold text-slate-600 mt-0.5">{store.legal_name}</p>}
-          <div className="text-xs text-slate-500 mt-1 space-y-0.5">
-            {store?.address && <p>{store.address}</p>}
-            {(store?.city || store?.state) && <p>{[store.city, store.state, store.pincode].filter(Boolean).join(', ')}</p>}
-            {store?.phone && <p>📞 Phone: {store.phone}</p>}
-            {store?.email && <p>✉️ Email: {store.email}</p>}
+        <div className="flex items-start gap-4">
+          <img
+            src={store?.logo_url || '/thirumala-logo.png'}
+            alt="Thirumala Furniture Logo"
+            className="h-16 w-auto object-contain flex-shrink-0"
+          />
+          <div>
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">{store?.name ?? 'Thirumala Furniture'}</h2>
+            {store?.legal_name && <p className="text-xs font-semibold text-slate-600 mt-0.5">{store.legal_name}</p>}
+            <div className="text-xs text-slate-500 mt-1 space-y-0.5">
+              {store?.address && <p>{store.address}</p>}
+              {(store?.city || store?.state) && <p>{[store.city, store.state, store.pincode].filter(Boolean).join(', ')}</p>}
+              {store?.phone && <p>📞 Phone: {store.phone}</p>}
+              {store?.email && <p>✉️ Email: {store.email}</p>}
+            </div>
           </div>
         </div>
         <div className="text-right">

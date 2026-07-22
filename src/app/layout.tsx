@@ -14,9 +14,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   manifest: '/manifest.json',
   icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
+    icon: [
+      { url: '/nexvelt-logo.png', type: 'image/png' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    shortcut: '/nexvelt-logo.png',
+    apple: '/nexvelt-logo.png',
   },
 }
 

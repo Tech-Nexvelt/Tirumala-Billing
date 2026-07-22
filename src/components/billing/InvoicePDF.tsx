@@ -1,5 +1,5 @@
 import React from 'react'
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import type { Invoice, InvoiceItem, Store } from '@/types/database'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDate, formatDateTime } from '@/lib/utils/date'
@@ -223,16 +223,22 @@ export function InvoicePDF({ invoice, items, store }: InvoicePDFProps) {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.storeName}>{store?.name ?? 'Tirumala Furniture'}</Text>
-            {store?.legal_name && <Text style={styles.storeLegal}>{store.legal_name}</Text>}
-            <View style={styles.storeDetails}>
-              {store?.address && <Text>{store.address}</Text>}
-              {(store?.city || store?.state) && (
-                <Text>{[store.city, store.state, store.pincode].filter(Boolean).join(', ')}</Text>
-              )}
-              {store?.phone && <Text>Phone: {store.phone}</Text>}
-              {store?.email && <Text>Email: {store.email}</Text>}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Image
+              src={store?.logo_url || '/thirumala-logo.png'}
+              style={{ width: 45, height: 45, marginRight: 10, objectFit: 'contain' }}
+            />
+            <View>
+              <Text style={styles.storeName}>{store?.name ?? 'Thirumala Furniture'}</Text>
+              {store?.legal_name && <Text style={styles.storeLegal}>{store.legal_name}</Text>}
+              <View style={styles.storeDetails}>
+                {store?.address && <Text>{store.address}</Text>}
+                {(store?.city || store?.state) && (
+                  <Text>{[store.city, store.state, store.pincode].filter(Boolean).join(', ')}</Text>
+                )}
+                {store?.phone && <Text>Phone: {store.phone}</Text>}
+                {store?.email && <Text>Email: {store.email}</Text>}
+              </View>
             </View>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
