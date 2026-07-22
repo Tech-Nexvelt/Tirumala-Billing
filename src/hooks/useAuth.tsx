@@ -2,6 +2,8 @@
 import { useEffect, useState, createContext, useContext, useCallback } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { useBillingStore } from '@/store/billingStore'
+import { useProductCacheStore } from '@/store/productCacheStore'
 import type { Profile, Store } from '@/types/database'
 
 interface AuthContextValue {
@@ -84,9 +86,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase, loadProfile])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
-    setProfile(null)
-    setStore(null)
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('[Auth] SignOut error:', err)
+    } finally {
+      setUser(null)
+      setSession(null)
+      setProfile(null)
+      setStore(null)
+
+      try {
+        useBillingStore.getState().clearBill()
+        useProductCacheStore.setState({ products: [], isLoading: false })
+      } catch (err) {
+        console.error('[Auth] Error clearing store cache:', err)
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.clear()
+          sessionStorage.clear()
+        } catch (e) {
+          console.error('[Auth] Storage clear error:', e)
+        }
+        window.location.href = '/login'
+      }
+    }
   }, [supabase])
 
   const refreshProfile = useCallback(async () => {

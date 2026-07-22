@@ -17,10 +17,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   
   const router = useRouter()
   const pathname = usePathname()
-  const { store, profile } = useAuth()
+  const { store, profile, user, isLoading } = useAuth()
   const { addItem } = useBillingStore()
   const { products, fetchProducts, syncProduct } = useProductCacheStore()
   const supabase = createClient()
+
+  // ── Auth Guard for Client-Side Navigation ────────────────────────────────────
+  useEffect(() => {
+    if (!isLoading && !user) {
+      const publicRoutes = ['/login', '/forgot-password', '/register', '/scanner']
+      if (!publicRoutes.some(r => pathname.startsWith(r))) {
+        router.replace('/login')
+      }
+    }
+  }, [isLoading, user, pathname, router])
 
   const storeId = store?.id || profile?.store_id
 

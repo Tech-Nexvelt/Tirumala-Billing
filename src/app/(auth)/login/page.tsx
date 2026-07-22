@@ -26,8 +26,7 @@ function LoginForm() {
       if (error) throw error
 
       toast.success('Welcome back!')
-      router.push(redirect)
-      router.refresh()
+      window.location.href = redirect
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed'
       if (message.includes('Invalid login')) {

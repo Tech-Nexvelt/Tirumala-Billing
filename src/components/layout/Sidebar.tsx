@@ -261,12 +261,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           className="flex items-center gap-3 px-3 py-2 rounded-lg"
           style={{ background: 'var(--secondary-bg)' }}
         >
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+          <button
+            onClick={signOut}
+            title="Click to sign out"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
             style={{ background: 'linear-gradient(135deg, #00D9D9, #35F5FF)', color: '#0F172A' }}
           >
             {profile?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
-          </div>
+          </button>
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
