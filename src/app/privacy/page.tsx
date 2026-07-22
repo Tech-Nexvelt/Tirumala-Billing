@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const TOC: TocItem[] = [
   { id: '1-introduction', label: '1. Introduction & Overview' },
   { id: '2-information-collected', label: '2. Information We Collect' },
-  { id: '3-[#111827]-permissions', label: '3. Device & Hardware Permissions' },
+  { id: '3-device-permissions', label: '3. Device & Hardware Permissions' },
   { id: '4-why-we-collect', label: '4. Why We Collect Information' },
   { id: '5-data-storage', label: '5. Data Storage & Hosting' },
   { id: '6-data-security', label: '6. Data Security & Encryption' },
@@ -22,7 +22,7 @@ const TOC: TocItem[] = [
   { id: '12-account-deletion', label: '12. Account Deletion & Wipe' },
   { id: '13-data-export', label: '13. Data Export Rights' },
   { id: '14-childrens-privacy', label: '14. Children\'s Privacy' },
-  { id: '15-[#6B7280]-communications', label: '15. Communications Preferences' },
+  { id: '15-communications', label: '15. Communications Preferences' },
   { id: '16-policy-updates', label: '16. Policy Updates & Contact' },
 ]
 

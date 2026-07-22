@@ -25,8 +25,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // ── Auth Guard for Client-Side Navigation ────────────────────────────────────
   useEffect(() => {
     if (!isLoading && !user) {
-      const publicRoutes = ['/login', '/forgot-password', '/register', '/scanner']
-      if (!publicRoutes.some(r => pathname.startsWith(r))) {
+      const publicRoutes = ['/login', '/forgot-password', '/register', '/scanner', '/terms', '/privacy', '/cookies', '/refund-policy', '/pages']
+      if (!publicRoutes.some(r => pathname === r || pathname.startsWith(r))) {
         router.replace('/login')
       }
     }

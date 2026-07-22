@@ -51,8 +51,13 @@ export async function middleware(request: NextRequest) {
     '/register',
     '/manifest.json',
     '/scanner',
+    '/terms',
+    '/privacy',
+    '/cookies',
+    '/refund-policy',
+    '/pages',
   ]
-  const isPublicRoute = publicRoutes.some(r => pathname.startsWith(r))
+  const isPublicRoute = publicRoutes.some(r => pathname === r || pathname.startsWith(r))
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
@@ -61,7 +66,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isPublicRoute && pathname !== '/register' && !pathname.startsWith('/scanner')) {
+  // Redirect authenticated users away from login/forgot-password to dashboard
+  const authFormRoutes = ['/login', '/forgot-password', '/reset-password']
+  const isAuthFormRoute = authFormRoutes.some(r => pathname.startsWith(r))
+
+  if (user && isAuthFormRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
