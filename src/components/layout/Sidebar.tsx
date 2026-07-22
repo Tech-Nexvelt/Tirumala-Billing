@@ -113,8 +113,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       >
         <div className="w-9 h-9 flex items-center justify-center flex-shrink-0 relative">
           <img
-            src="/logo.png"
-            alt="Logo"
+            src={store?.logo_url || '/thirumala-logo.png'}
+            alt={store?.name ?? 'Store Logo'}
             className="w-full h-full object-contain rounded-lg"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
@@ -124,16 +124,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             }}
           />
           <div
-            className="hidden w-full h-full rounded-lg items-center justify-center font-bold text-sm"
-            style={{ background: 'linear-gradient(135deg, #00D9D9, #35F5FF)', color: '#0F172A' }}
+            className="hidden w-full h-full rounded-lg items-center justify-center font-bold text-xs"
+            style={{ background: 'linear-gradient(135deg, #00D9D9, #00B8B8)', color: '#FFFFFF' }}
           >
-            TF
+            {store?.name ? store.name.substring(0, 2).toUpperCase() : 'POS'}
           </div>
         </div>
         {!collapsed && (
           <div className="ml-3 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-              {store?.name ?? 'Thirumala Furniture'}
+              {store?.name ?? 'Billing POS'}
             </p>
             <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>Billing Software</p>
           </div>

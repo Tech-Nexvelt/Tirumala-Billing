@@ -5,12 +5,12 @@ import { Providers } from '@/components/providers'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Thirumala Furniture — Billing Software',
-    template: '%s | Thirumala Furniture',
+    default: 'Nexvelt Billing Platform — Cloud POS Software',
+    template: '%s | Nexvelt Billing Platform',
   },
-  description: 'Fast, barcode-first Zero GST furniture billing software. Generate invoices in under 30 seconds.',
-  keywords: ['furniture billing', 'POS', 'barcode billing', 'invoice', 'zero GST'],
-  authors: [{ name: 'Thirumala Furniture' }],
+  description: 'Enterprise Cloud Billing Software & Barcode POS for Furniture Stores — Powered by Nexvelt.',
+  keywords: ['Nexvelt', 'furniture billing', 'POS', 'barcode billing', 'cloud invoice', 'Nexvelt SaaS'],
+  authors: [{ name: 'Nexvelt Platform' }],
   robots: { index: false, follow: false },
   manifest: '/manifest.json',
   icons: {

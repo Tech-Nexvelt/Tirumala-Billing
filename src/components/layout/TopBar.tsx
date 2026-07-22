@@ -26,7 +26,7 @@ export function TopBar({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-sm">
         <span style={{ color: 'var(--text-muted)' }}>
-          {store?.name ?? 'Thirumala Furniture'}
+          {store?.name ?? 'Store POS'}
         </span>
         {breadcrumb.map((crumb, i) => (
           <span key={crumb.href} className="flex items-center gap-1.5">

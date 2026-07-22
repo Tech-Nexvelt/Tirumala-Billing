@@ -1,95 +1,107 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Login',
+  title: 'Sign In | Nexvelt Billing Platform',
+  description: 'Enterprise Cloud Billing Software for Furniture Stores — Powered by Nexvelt.',
 }
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--background)' }}>
-      {/* Left Panel — Brand */}
+    <div className="min-h-screen flex text-[#111827]" style={{ background: '#F8FAFC' }}>
+      {/* Left Panel — Nexvelt SaaS Branding */}
       <div
-        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1a2744 50%, #0c1a2e 100%)' }}
+        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden border-r border-[#E5E7EB]"
+        style={{
+          background: 'linear-gradient(145deg, #FFFFFF 0%, #F1F5F9 60%, #F8FAFC 100%)',
+        }}
       >
-        {/* Animated background circles */}
-        <div className="absolute inset-0 pointer-events-none">
+        {/* Subtle mesh background accent */}
+        <div className="absolute inset-0 pointer-events-none opacity-50">
           <div
-            className="absolute -top-32 -left-32 w-96 h-96 rounded-full opacity-20"
-            style={{ background: 'radial-gradient(circle, #00D9D9, transparent)' }}
+            className="absolute -top-24 -left-24 w-96 h-96 rounded-full blur-3xl"
+            style={{ background: 'rgba(0, 217, 217, 0.12)' }}
           />
           <div
-            className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full opacity-10"
-            style={{ background: 'radial-gradient(circle, #35F5FF, transparent)' }}
-          />
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-5"
-            style={{ background: 'radial-gradient(circle, #00D9D9, transparent)' }}
+            className="absolute -bottom-24 -right-24 w-[450px] h-[450px] rounded-full blur-3xl"
+            style={{ background: 'rgba(53, 245, 255, 0.15)' }}
           />
         </div>
 
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 flex items-center justify-center flex-shrink-0 relative">
+        {/* Top Nexvelt Brand Header */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl p-2 bg-white shadow-sm border border-[#E5E7EB] flex items-center justify-center">
               <img
-                src="/logo.png"
-                alt="Logo"
-                className="w-full h-full object-contain rounded-xl"
+                src="/nexvelt-logo.png"
+                alt="Nexvelt Logo"
+                className="w-full h-full object-contain"
               />
             </div>
             <div>
-              <h1 className="text-white font-bold text-xl leading-tight">Thirumala Furniture</h1>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>Billing Software</p>
+              <h1 className="font-bold text-xl text-[#111827] tracking-tight">Nexvelt</h1>
+              <p className="text-xs font-semibold text-[#00B8B8] tracking-wide uppercase">Billing Platform</p>
             </div>
           </div>
         </div>
 
-        {/* Center content */}
-        <div className="relative">
+        {/* Center SaaS Pitch */}
+        <div className="relative z-10 my-auto py-8">
           <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
-            style={{ background: 'rgba(0,217,217,0.15)', color: '#35F5FF', border: '1px solid rgba(0,217,217,0.3)' }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-6 border"
+            style={{
+              background: 'rgba(0, 217, 217, 0.08)',
+              color: '#00B8B8',
+              borderColor: 'rgba(0, 217, 217, 0.2)',
+            }}
           >
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#35F5FF' }} />
-            Zero GST Billing
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#00D9D9' }} />
+            Enterprise Furniture POS &amp; Inventory Suite
           </div>
-          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
-            Bill faster with<br />
+
+          <h2 className="text-4xl font-extrabold text-[#111827] tracking-tight leading-tight mb-4">
+            Build Faster.<br />
             <span style={{
-              background: 'linear-gradient(135deg, #00D9D9, #35F5FF)',
+              background: 'linear-gradient(135deg, #00D9D9 0%, #00B8B8 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-            }}>barcode scanning</span>
+            }}>Bill Smarter.</span>
           </h2>
-          <p className="text-lg leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
-            Scan barcodes. Generate invoices instantly. Complete a bill in under 30 seconds.
+
+          <p className="text-base text-[#6B7280] leading-relaxed mb-8 max-w-lg">
+            Modern cloud billing, real-time wireless barcode scanning, and multi-tenant store operations designed specifically for furniture retail businesses.
           </p>
 
-          {/* Feature pills */}
-          <div className="mt-8 flex flex-wrap gap-2">
-            {['⚡ Instant Scan', '📄 Zero GST Invoice', '💳 Split Payment', '🖨️ Thermal Print'].map(f => (
-              <span
-                key={f}
-                className="px-3 py-1.5 rounded-full text-xs font-medium"
-                style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}
+          {/* Feature Grid */}
+          <div className="grid grid-cols-2 gap-3 max-w-lg">
+            {[
+              { title: '☁️ Cloud Based', desc: 'Instant access anywhere' },
+              { title: '📱 Mobile Scanner', desc: 'Zero-hardware barcode POS' },
+              { title: '⚡ Realtime Sync', desc: 'Sub-second inventory updates' },
+              { title: '📦 Inventory Control', desc: 'Variant & barcode tags' },
+              { title: '📄 Zero GST Billing', desc: 'Esc-POS thermal receipts' },
+              { title: '📊 Analytics Suite', desc: 'Revenue & sales tracking' },
+            ].map(item => (
+              <div
+                key={item.title}
+                className="p-3.5 rounded-xl border border-[#E5E7EB] bg-white/80 backdrop-blur-sm shadow-xs transition-all hover:border-[#00D9D9]/40"
               >
-                {f}
-              </span>
+                <p className="text-xs font-bold text-[#111827]">{item.title}</p>
+                <p className="text-[11px] text-[#6B7280] mt-0.5">{item.desc}</p>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="relative">
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            © 2024 Thirumala Furniture. All rights reserved.
-          </p>
+        {/* Nexvelt Copyright */}
+        <div className="relative z-10 flex items-center justify-between text-xs text-[#6B7280] pt-6 border-t border-[#E5E7EB]">
+          <span>© 2026 Nexvelt. All rights reserved.</span>
+          <span className="font-semibold text-[#00B8B8]">Powered by Nexvelt</span>
         </div>
       </div>
 
-      {/* Right Panel — Form */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
+      {/* Right Panel — Form Container */}
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12" style={{ background: '#F8FAFC' }}>
         <div className="w-full max-w-md">
           {children}
         </div>

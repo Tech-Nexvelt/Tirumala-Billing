@@ -32,6 +32,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, user, pathname, router])
 
+  // ── Dynamic Customer Brand Browser Title Switch ──────────────────────────────
+  useEffect(() => {
+    if (store?.name) {
+      const pageTitle = pathname.startsWith('/billing/new')
+        ? 'New Bill'
+        : pathname.startsWith('/bills')
+        ? 'Bill History'
+        : pathname.startsWith('/products')
+        ? 'Products'
+        : pathname.startsWith('/settings')
+        ? 'Settings'
+        : 'Dashboard'
+      document.title = `${pageTitle} | ${store.name}`
+    }
+  }, [store?.name, pathname])
+
   const storeId = store?.id || profile?.store_id
 
   // ── Prefetch Product Cache ──────────────────────────────────────────────────

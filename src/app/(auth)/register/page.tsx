@@ -11,7 +11,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
 
-  const [store, setStore] = useState({ name: 'Thirumala Furniture', address: '', phone: '', city: '', state: '' })
+  const [store, setStore] = useState({ name: '', address: '', phone: '', city: '', state: '' })
   const [user, setUser] = useState({ full_name: '', email: '', password: '', confirm_password: '' })
 
   async function handleRegister(e: React.FormEvent) {
@@ -40,7 +40,6 @@ export default function RegisterPage() {
 
     setIsLoading(true)
     try {
-      // Call the secure server-side API endpoint
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: {
@@ -66,14 +65,13 @@ export default function RegisterPage() {
 
       toast.success('Store registered successfully! Logging you in...')
 
-      // Perform auto-login for immediate session start
       const { error: loginErr } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: user.password,
       })
 
       if (loginErr) {
-        toast.info('Onboarding complete! Please sign in manually.')
+        toast.info('Registration complete! Please sign in manually.')
         router.push('/login')
       } else {
         router.push('/dashboard')
@@ -91,80 +89,67 @@ export default function RegisterPage() {
     }
   }
 
-  const inputClass = "w-full h-11 px-3.5 rounded-lg text-sm transition-all duration-200"
+  const inputClass = "w-full h-11 px-3.5 rounded-xl text-sm transition-all duration-200"
   const inputStyle = {
-    background: 'var(--surface)',
-    border: '1.5px solid var(--border)',
-    color: 'var(--text-primary)',
+    background: '#FFFFFF',
+    border: '1.5px solid #E5E7EB',
+    color: '#111827',
     outline: 'none' as const,
   }
   const inputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'var(--primary)'
-    e.target.style.boxShadow = '0 0 0 3px rgba(0,217,217,0.15)'
+    e.target.style.borderColor = '#00D9D9'
+    e.target.style.boxShadow = '0 0 0 3px rgba(0, 217, 217, 0.15)'
   }
   const inputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'var(--border)'
+    e.target.style.borderColor = '#E5E7EB'
     e.target.style.boxShadow = 'none'
   }
 
   return (
-    <div>
-      {/* Mobile logo */}
-      <div className="flex items-center gap-3 mb-8 lg:hidden">
-        <div className="w-10 h-10 flex items-center justify-center flex-shrink-0 relative">
+    <div className="bg-white p-8 rounded-2xl border border-[#E5E7EB] shadow-sm">
+      {/* Mobile Nexvelt Logo */}
+      <div className="flex items-center gap-3 mb-6 lg:hidden">
+        <div className="w-10 h-10 p-1.5 bg-white rounded-xl border border-[#E5E7EB] shadow-xs flex items-center justify-center">
           <img
-            src="/logo.png"
-            alt="Logo"
-            className="w-full h-full object-contain rounded-xl"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              const el = e.currentTarget.nextSibling as HTMLDivElement;
-              if (el) el.classList.remove('hidden');
-              if (el) el.classList.add('flex');
-            }}
+            src="/nexvelt-logo.png"
+            alt="Nexvelt Logo"
+            className="w-full h-full object-contain"
           />
-          <div
-            className="hidden w-full h-full rounded-xl items-center justify-center font-bold"
-            style={{ background: 'linear-gradient(135deg, #00D9D9, #35F5FF)', color: '#0F172A' }}
-          >
-            TF
-          </div>
         </div>
-        <span className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>
-          Thirumala Furniture
-        </span>
+        <div>
+          <span className="font-bold text-base text-[#111827] block">Nexvelt</span>
+          <span className="text-[10px] font-semibold text-[#00B8B8] uppercase tracking-wider block">Billing Platform</span>
+        </div>
       </div>
 
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-          Register Your Store
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-[#111827] tracking-tight mb-1">
+          Register Your Business
         </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-          Already have an account?{' '}
-          <Link href="/login" style={{ color: 'var(--primary)', fontWeight: 500 }} className="hover:underline">
-            Sign in
-          </Link>
+        <p className="text-sm text-[#6B7280]">
+          Create your store account on <strong>Nexvelt Billing Platform</strong>
         </p>
       </div>
 
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 mb-6">
+      {/* Step Indicator */}
+      <div className="flex items-center gap-2 mb-6 p-1.5 bg-[#F8FAFC] rounded-xl border border-[#E5E7EB]">
         {[1, 2].map(s => (
-          <div key={s} className="flex items-center gap-2">
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all"
+          <div key={s} className="flex-1 flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold"
+            style={{
+              background: step >= s ? '#FFFFFF' : 'transparent',
+              color: step >= s ? '#111827' : '#94A3B8',
+              boxShadow: step >= s ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+            }}>
+            <span
+              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
               style={{
-                background: step >= s ? 'linear-gradient(135deg, #00D9D9, #35F5FF)' : 'var(--secondary-bg)',
-                color: step >= s ? '#0F172A' : 'var(--text-muted)',
-                border: step >= s ? 'none' : '1.5px solid var(--border)',
+                background: step >= s ? 'linear-gradient(135deg, #00D9D9, #00B8B8)' : '#E5E7EB',
+                color: step >= s ? '#FFFFFF' : '#6B7280',
               }}
             >
               {step > s ? '✓' : s}
-            </div>
-            <span className="text-xs" style={{ color: step >= s ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-              {s === 1 ? 'Store Info' : 'Admin Account'}
             </span>
-            {s < 2 && <div className="w-8 h-px mx-1" style={{ background: step > s ? 'var(--primary)' : 'var(--border)' }} />}
+            <span>{s === 1 ? '1. Store Info' : '2. Admin Account'}</span>
           </div>
         ))}
       </div>
@@ -173,19 +158,19 @@ export default function RegisterPage() {
         {step === 1 && (
           <>
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>
-                Store Name *
+              <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">
+                Store / Business Name *
               </label>
               <input
                 type="text" required value={store.name} autoFocus
                 onChange={e => setStore(p => ({ ...p, name: e.target.value }))}
-                placeholder="Thirumala Furniture"
+                placeholder="e.g. Thirumala Furniture, Royal Wood POS"
                 className={inputClass} style={inputStyle}
                 onFocus={inputFocus} onBlur={inputBlur}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>
+              <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">
                 Phone Number
               </label>
               <input
@@ -198,7 +183,7 @@ export default function RegisterPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>City</label>
+                <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">City</label>
                 <input type="text" value={store.city}
                   onChange={e => setStore(p => ({ ...p, city: e.target.value }))}
                   placeholder="Hyderabad"
@@ -207,7 +192,7 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>State</label>
+                <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">State</label>
                 <input type="text" value={store.state}
                   onChange={e => setStore(p => ({ ...p, state: e.target.value }))}
                   placeholder="Telangana"
@@ -217,7 +202,7 @@ export default function RegisterPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>Address</label>
+              <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">Address</label>
               <input type="text" value={store.address}
                 onChange={e => setStore(p => ({ ...p, address: e.target.value }))}
                 placeholder="Shop No. 1, Main Road"
@@ -234,10 +219,10 @@ export default function RegisterPage() {
                 }
                 setStep(2)
               }}
-              className="w-full h-11 rounded-lg font-semibold text-sm mt-2"
+              className="w-full h-11 rounded-xl font-bold text-sm mt-2 shadow-xs"
               style={{
-                background: 'linear-gradient(135deg, #00D9D9, #35F5FF)',
-                color: '#0F172A',
+                background: 'linear-gradient(135deg, #00D9D9 0%, #00B8B8 100%)',
+                color: '#FFFFFF',
                 cursor: 'pointer',
               }}
             >
@@ -249,7 +234,7 @@ export default function RegisterPage() {
         {step === 2 && (
           <>
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>
+              <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">
                 Your Full Name *
               </label>
               <input
@@ -261,17 +246,17 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>Email Address *</label>
+              <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">Email Address *</label>
               <input
                 type="email" required value={user.email}
                 onChange={e => setUser(p => ({ ...p, email: e.target.value }))}
-                placeholder="admin@thirumala.com"
+                placeholder="admin@yourstore.com"
                 className={inputClass} style={inputStyle}
                 onFocus={inputFocus} onBlur={inputBlur}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>Password *</label>
+              <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">Password *</label>
               <input
                 type="password" required minLength={8} value={user.password}
                 onChange={e => setUser(p => ({ ...p, password: e.target.value }))}
@@ -281,7 +266,7 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>Confirm Password *</label>
+              <label className="block text-xs font-semibold text-[#111827] mb-1.5 uppercase tracking-wide">Confirm Password *</label>
               <input
                 type="password" required value={user.confirm_password}
                 onChange={e => setUser(p => ({ ...p, confirm_password: e.target.value }))}
@@ -289,41 +274,48 @@ export default function RegisterPage() {
                 className={inputClass}
                 style={{
                   ...inputStyle,
-                  borderColor: user.confirm_password && user.password !== user.confirm_password ? 'var(--error)' : 'var(--border)',
+                  borderColor: user.confirm_password && user.password !== user.confirm_password ? '#EF4444' : '#E5E7EB',
                 }}
                 onFocus={inputFocus} onBlur={inputBlur}
               />
               {user.confirm_password && user.password !== user.confirm_password && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--error)' }}>Passwords do not match</p>
+                <p className="mt-1 text-xs text-[#EF4444]">Passwords do not match</p>
               )}
             </div>
 
             <div className="flex gap-3 mt-2">
               <button
                 type="button" onClick={() => setStep(1)}
-                className="flex-1 h-11 rounded-lg font-medium text-sm"
-                style={{ background: 'var(--secondary-bg)', color: 'var(--text-primary)', border: '1.5px solid var(--border)' }}
+                className="flex-1 h-11 rounded-xl font-semibold text-sm border border-[#E5E7EB] bg-white text-[#111827]"
               >
                 ← Back
               </button>
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex-1 h-11 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"
+                className="flex-1 h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-xs"
                 style={{
-                  background: isLoading ? 'var(--secondary-bg)' : 'linear-gradient(135deg, #00D9D9, #35F5FF)',
-                  color: isLoading ? 'var(--text-disabled)' : '#0F172A',
+                  background: isLoading ? '#F1F5F9' : 'linear-gradient(135deg, #00D9D9 0%, #00B8B8 100%)',
+                  color: isLoading ? '#94A3B8' : '#FFFFFF',
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                 }}
               >
                 {isLoading ? (
-                  <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75"/></svg> Creating store...</>
-                ) : 'Create Store & Account'}
+                  <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75"/></svg> Registering...</>
+                ) : 'Create Store Account'}
               </button>
             </div>
           </>
         )}
       </form>
+
+      {/* Back to login */}
+      <div className="mt-6 pt-4 border-t border-[#E5E7EB] text-center text-xs text-[#6B7280]">
+        Already have a store account?{' '}
+        <Link href="/login" className="font-bold text-[#00B8B8] hover:underline">
+          Sign in
+        </Link>
+      </div>
     </div>
   )
 }

@@ -65,6 +65,7 @@ export default function SettingsPage() {
   const [storeForm, setStoreForm] = useState({
     name: '',
     legal_name: '',
+    logo_url: '',
     address: '',
     city: '',
     state: '',
@@ -91,6 +92,7 @@ export default function SettingsPage() {
       setStoreForm({
         name: store.name ?? '',
         legal_name: store.legal_name ?? '',
+        logo_url: store.logo_url ?? '',
         address: store.address ?? '',
         city: store.city ?? '',
         state: store.state ?? '',
@@ -288,13 +290,19 @@ export default function SettingsPage() {
                   onChange={e => setStoreForm(p => ({ ...p, name: e.target.value }))}
                   className={inputClass} style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
               </Field>
-              <Field label="Legal Name">
+              <Field label="Legal Name / GST Name">
                 <input type="text" value={storeForm.legal_name}
                   onChange={e => setStoreForm(p => ({ ...p, legal_name: e.target.value }))}
                   placeholder="For official documents"
                   className={inputClass} style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
               </Field>
             </div>
+            <Field label="Business Logo URL" hint="URL or image path for invoices & receipt header (e.g. /thirumala-logo.png)">
+              <input type="text" value={storeForm.logo_url}
+                onChange={e => setStoreForm(p => ({ ...p, logo_url: e.target.value }))}
+                placeholder="https://example.com/my-logo.png or /thirumala-logo.png"
+                className={inputClass} style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+            </Field>
             <Field label="Address">
               <input type="text" value={storeForm.address}
                 onChange={e => setStoreForm(p => ({ ...p, address: e.target.value }))}
